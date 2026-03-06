@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ephemera — City Grid</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+  :root{--blood:#8B0000;--blood-bright:#CC0000;--gold:#C9A84C;--gold-dim:#7A6230;--parchment:#E8DCC8;--mist:#888;--void:#0A0A0A;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--void);color:var(--parchment);font-family:'Crimson Text',serif;background-image:radial-gradient(ellipse at 50% 0%,rgba(139,0,0,0.07) 0%,transparent 60%);user-select:none;padding-bottom:60px;}
+  .page{display:flex;flex-direction:column;align-items:flex-start;padding:20px 0 0 20px;}
+  header{text-align:center;width:100%;padding:0 20px 14px 0;}
+  h1{font-family:'Cinzel',serif;font-size:2rem;font-weight:900;letter-spacing:0.3em;color:var(--blood-bright);text-shadow:0 0 28px rgba(139,0,0,0.5);margin-bottom:3px;}
+  .subtitle{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.25em;color:var(--gold-dim);text-transform:uppercase;}
+  .divider{width:260px;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dim),transparent);margin:8px auto 0;}
+  .map-section{width:100%;}
+  .map-label{font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.14em;color:var(--gold-dim);margin-bottom:5px;text-transform:uppercase;}
+  .outer-frame{display:grid;grid-template-columns:14px 1fr 52px;grid-template-rows:14px auto 14px;margin-right:0;}
+  .frame-corner{background:#050505;}
+  .frame-barrens{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0D1A0D,#0A120A);border:1px solid #1A2B1A;}
+  .frame-water{display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#0A1520,#0D2540,#0A1520);border:1px solid #0D2A40;position:relative;overflow:hidden;box-shadow:40px 0 0 0 #0D2540;}
+  .frame-water::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(180deg,transparent,transparent 6px,rgba(13,50,80,0.25) 6px,rgba(13,50,80,0.25) 7px);}
+  .frame-label{font-family:'Cinzel',serif;font-size:0.4rem;letter-spacing:0.08em;text-transform:uppercase;white-space:nowrap;z-index:1;}
+  .frame-label.bn,.frame-label.bs{color:#2A4A2A;}
+  .frame-label.bw{color:#2A4A2A;transform:rotate(-90deg);}
+  .frame-label.we{color:#1A5070;transform:rotate(90deg);}
+  .city-block{background:#050505;border:1px solid #1A1A1A;padding:8px;}
+  .coord-row{display:flex;gap:3px;margin-bottom:3px;padding-left:14px;}
+  .coord-col{display:flex;flex-direction:column;gap:3px;margin-right:3px;}
+  .coord-label{font-family:'Cinzel',serif;font-size:0.4rem;color:#2A2A2A;width:72px;text-align:center;}
+  .coord-label-side{font-family:'Cinzel',serif;font-size:0.4rem;color:#2A2A2A;height:72px;display:flex;align-items:center;justify-content:center;}
+  .grid{display:grid;grid-template-columns:repeat(7,72px);grid-template-rows:repeat(6,72px);gap:3px;}
+  .cell{width:72px;height:72px;border:1px solid #2A2A2A;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px;text-align:center;overflow:hidden;cursor:grab;transition:border-color 0.12s,opacity 0.12s,transform 0.12s;}
+  .cell:active{cursor:grabbing;}
+  .cell:hover{border-color:var(--gold-dim)!important;z-index:10;}
+  .cell.selected{border-color:var(--gold)!important;border-width:2px;z-index:11;}
+  .cell.dragging{opacity:0.22;transform:scale(0.92);border-style:dashed!important;}
+  .cell.drag-over{border-color:var(--gold)!important;border-width:2px;filter:brightness(1.5);z-index:12;}
+  .cell.t-unplaced{background:#0E0E0E;border-color:#1E1E1E;border-style:dashed;}
+  .cell.t-placed{background:#131313;border-color:#2A2A2A;}
+  .cell.t-port{background:linear-gradient(135deg,#0C1E30,#0A1828);border-color:#1E5080;box-shadow:inset 0 0 12px rgba(13,50,100,0.2);}
+  .cell.t-brujah{background:linear-gradient(135deg,#1A0E08,#120A05);border-color:#5A2A10;}
+  .cell.t-anchor-power{background:linear-gradient(135deg,#1A0A0A,#110808);border-color:var(--blood);box-shadow:inset 0 0 12px rgba(139,0,0,0.15);}
+  .cell.t-anchor-nature{background:linear-gradient(135deg,#0A1A0A,#081108);border-color:#2A5A2A;}
+  .cell.t-anchor-nature-south{background:linear-gradient(135deg,#0C1C0A,#0A140A);border-color:#225022;}
+  .cell.t-anchor-nature-central{background:radial-gradient(ellipse at center,#0A180A,#050C05);border-color:#1E5A1E;box-shadow:inset 0 0 18px rgba(20,70,20,0.5);}
+  .cell.t-anchor-knowledge{background:linear-gradient(135deg,#0A0A1A,#080811);border-color:#2A2A6A;}
+  .cell.has-interior::after{content:'⊞';position:absolute;bottom:2px;right:3px;font-size:0.4rem;color:#2A2A3A;pointer-events:none;}
+  .cell-name{font-family:'Cinzel',serif;font-size:0.42rem;font-weight:600;line-height:1.2;color:var(--parchment);z-index:1;pointer-events:none;}
+  .cell.t-port .cell-name{color:#7AAAC8;}
+  .cell.t-brujah .cell-name{color:#C87A4A;}
+  .cell.t-anchor-nature .cell-name,.cell.t-anchor-nature-south .cell-name{color:#7ABE7A;}
+  .cell.t-anchor-nature-central .cell-name{color:#4A9A4A;}
+  .cell-tag{font-size:0.38rem;font-style:italic;color:var(--mist);margin-top:1px;z-index:1;line-height:1.1;pointer-events:none;}
+  .cell.t-port .cell-tag{color:#3A6A88;}
+  .cell.t-brujah .cell-tag{color:#6A3A20;}
+  .cell.t-anchor-nature .cell-tag,.cell.t-anchor-nature-south .cell-tag{color:#3A6A3A;}
+  .cell.t-anchor-nature-central .cell-tag{color:#2A5A2A;}
+  .cell-icon{font-size:0.78rem;margin-bottom:1px;z-index:1;pointer-events:none;}
+  .cell-num{position:absolute;top:2px;left:3px;font-family:'Cinzel',serif;font-size:0.34rem;color:#222;z-index:1;pointer-events:none;}
+  /* TRAY */
+  .tray-section{width:100%;margin-top:10px;padding-right:20px;}
+  .tray-header-row{display:flex;align-items:baseline;gap:10px;margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid #1A1A1A;}
+  .tray-title{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.16em;color:var(--gold-dim);text-transform:uppercase;}
+  .tray-hint{font-size:0.52rem;font-style:italic;color:#2A2A2A;font-family:'Crimson Text',serif;}
+  .tray-tabs{display:flex;border:1px solid #1A1A1A;border-bottom:none;width:fit-content;}
+  .tray-tab{padding:4px 12px;background:#0A0A0A;border:none;border-right:1px solid #1A1A1A;color:#444;font-family:'Cinzel',serif;font-size:0.48rem;letter-spacing:0.09em;text-transform:uppercase;cursor:pointer;transition:all 0.12s;}
+  .tray-tab:last-child{border-right:none;}
+  .tray-tab:hover{color:#888;}
+  .tray-tab.active{background:#111;color:var(--gold);border-bottom:2px solid var(--gold);}
+  .tray-tab .tc{font-size:0.36rem;color:#444;margin-left:4px;}
+  .tray-tab.active .tc{color:var(--gold-dim);}
+  .tray-filters{display:flex;flex-wrap:wrap;gap:4px;padding:6px 0 7px;}
+  .filter-btn{padding:2px 7px;border:1px solid #1A1A1A;background:#0A0A0A;color:#3A3A3A;font-family:'Cinzel',serif;font-size:0.4rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.12s;}
+  .filter-btn:hover{border-color:#333;color:#777;}
+  .filter-btn.active{border-color:var(--gold-dim);color:var(--gold);background:#111;}
+  .tray-drop-zone{min-height:88px;border:1px solid #1A1A1A;padding:8px;display:flex;flex-wrap:wrap;gap:7px;align-items:flex-start;background:#080808;transition:border-color 0.15s,background 0.15s;}
+  .tray-drop-zone.tray-over{border-color:var(--gold)!important;background:#0D0D08;}
+  .tray-empty{font-family:'Crimson Text',serif;font-size:0.76rem;font-style:italic;color:#222;padding:8px;align-self:center;}
+  .sug-card{width:134px;min-height:74px;border:1px solid #2A2A2A;background:#0E0E0E;display:flex;flex-direction:column;padding:5px 6px;cursor:grab;transition:border-color 0.12s,background 0.12s;position:relative;flex-shrink:0;}
+  .sug-card:active{cursor:grabbing;}
+  .sug-card:hover{border-color:var(--gold-dim);background:#111;}
+  .sug-card.dragging-card{opacity:0.22;}
+  .sug-name{font-family:'Cinzel',serif;font-size:0.45rem;font-weight:600;color:var(--parchment);line-height:1.3;margin-bottom:2px;}
+  .sug-tag{font-size:0.43rem;font-style:italic;color:#555;line-height:1.3;margin-bottom:2px;}
+  .sug-desc{font-size:0.41rem;color:#3A3A3A;line-height:1.4;flex:1;}
+  .sug-badge{position:absolute;top:2px;right:3px;font-family:'Cinzel',serif;font-size:0.32rem;color:#2A2A2A;letter-spacing:0.04em;text-transform:uppercase;}
+  .sug-card.custom-card{border-color:#2A2A1A;background:#0E0E0A;}
+  .sug-card.custom-card .sug-name{color:#C8C8A0;}
+  .sug-card.cat-power{border-color:#2A1A1A;}.sug-card.cat-power:hover{border-color:var(--blood);}
+  .sug-card.cat-industry{border-color:#2A1E10;}.sug-card.cat-industry:hover{border-color:#6A4020;}
+  .sug-card.cat-money{border-color:#1E1A0A;}.sug-card.cat-money:hover{border-color:var(--gold-dim);}
+  .sug-card.cat-culture{border-color:#1A1A2A;}.sug-card.cat-culture:hover{border-color:#4A4A8A;}
+  .sug-card.cat-residential{border-color:#1A1A1A;}.sug-card.cat-residential:hover{border-color:#3A3A3A;}
+  .sug-card.cat-margins{border-color:#1A1A14;}.sug-card.cat-margins:hover{border-color:#3A3A22;}
+  .sug-card.cat-edges{border-color:#141A1A;}.sug-card.cat-edges:hover{border-color:#2A4A4A;}
+  .sug-card.cat-history{border-color:#1A141A;}.sug-card.cat-history:hover{border-color:#4A2A4A;}
+  /* TOOLBAR */
+  .toolbar{width:100%;padding-right:20px;margin-top:14px;}
+  .toolbar-tabs{display:flex;background:#0A0A0A;border:1px solid #1A1A1A;border-bottom:none;width:fit-content;}
+  .tool-tab{padding:5px 14px;background:#0A0A0A;border:none;border-right:1px solid #1A1A1A;border-bottom:2px solid transparent;color:#444;font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.12s;flex-shrink:0;}
+  .tool-tab:last-child{border-right:none;}
+  .tool-tab:hover{color:#888;}
+  .tool-tab.active{color:var(--gold);border-bottom-color:var(--gold);background:#111;}
+  .tool-panel{display:none;padding:12px;border:1px solid #1A1A1A;background:#0D0D0D;}
+  .tool-panel.open{display:block;}
+  .edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .field-group{display:flex;flex-direction:column;gap:2px;margin-bottom:7px;}
+  .field-label{font-family:'Cinzel',serif;font-size:0.46rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold-dim);}
+  input[type="text"],textarea{width:100%;background:#0A0A0A;border:1px solid #222;color:var(--parchment);font-family:'Crimson Text',serif;font-size:0.8rem;padding:3px 6px;outline:none;transition:border-color 0.12s;}
+  input[type="text"]:focus,textarea:focus{border-color:var(--gold-dim);}
+  textarea{resize:vertical;min-height:50px;line-height:1.4;}
+  .editor-placeholder{font-size:0.82rem;font-style:italic;color:#2A2A2A;line-height:1.6;padding:6px 0;}
+  .type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+  .type-btn{padding:4px 2px;border:1px solid #1A1A1A;background:#0A0A0A;color:#444;font-family:'Cinzel',serif;font-size:0.37rem;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer;transition:all 0.12s;}
+  .type-btn:hover{border-color:#333;color:#777;}
+  .type-btn.active{border-color:var(--gold-dim);color:var(--gold);background:#111;}
+  .type-btn.active.tb-unplaced{border-color:#2A2A2A;color:#555;}
+  .type-btn.active.tb-placed{border-color:#3A3A3A;color:#888;}
+  .type-btn.active.tb-port{border-color:#1E5080;color:#7AAAC8;}
+  .type-btn.active.tb-brujah{border-color:#5A2A10;color:#C87A4A;}
+  .type-btn.active.tb-anchor-power{border-color:var(--blood);color:var(--blood-bright);}
+  .type-btn.active.tb-anchor-nature{border-color:#2A5A2A;color:#4A9A4A;}
+  .type-btn.active.tb-anchor-nature-central{border-color:#1E5A1E;color:#4ABB4A;}
+  .type-btn.active.tb-anchor-nature-south{border-color:#225022;color:#3A8A3A;}
+  .type-btn.active.tb-anchor-knowledge{border-color:#2A2A6A;color:#5A5ABA;}
+  .interior-note{background:#0A0A0A;border:1px solid #1A1A1A;border-left:2px solid #2A2A4A;padding:5px 7px;}
+  .interior-note-label{font-family:'Cinzel',serif;font-size:0.42rem;letter-spacing:0.08em;color:#3A3A6A;text-transform:uppercase;margin-bottom:2px;}
+  .interior-note textarea{border-color:#1A1A2A;font-size:0.74rem;min-height:36px;}
+  .btn-row{display:flex;gap:5px;margin-top:8px;}
+  .btn{flex:1;padding:5px;border:1px solid #2A2A2A;background:#111;color:#666;font-family:'Cinzel',serif;font-size:0.46rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.12s;}
+  .btn:hover{color:var(--parchment);border-color:#555;}
+  .btn.btn-save{border-color:var(--gold-dim);color:var(--gold);}
+  .btn.btn-save:hover{background:#1A1500;}
+  .btn.btn-delete{border-color:#3A0A0A;color:#5A1A1A;}
+  .btn.btn-delete:hover{background:#110505;color:var(--blood-bright);border-color:var(--blood);}
+  .confirm-overlay{background:#0A0505;border:1px solid var(--blood);padding:8px;margin-top:8px;display:none;}
+  .confirm-overlay.show{display:block;}
+  .confirm-text{font-size:0.74rem;color:#AA4444;margin-bottom:6px;line-height:1.4;font-style:italic;}
+  .confirm-btns{display:flex;gap:5px;}
+  .btn-confirm-yes{flex:1;padding:4px;border:1px solid var(--blood);background:#1A0505;color:var(--blood-bright);font-family:'Cinzel',serif;font-size:0.46rem;text-transform:uppercase;cursor:pointer;}
+  .btn-confirm-yes:hover{background:#220808;}
+  .btn-confirm-no{flex:1;padding:4px;border:1px solid #333;background:#111;color:#666;font-family:'Cinzel',serif;font-size:0.46rem;text-transform:uppercase;cursor:pointer;}
+  .btn-confirm-no:hover{color:var(--parchment);}
+  .dist-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 16px;}
+  .dist-item{display:flex;align-items:baseline;gap:5px;padding:3px 0;border-bottom:1px solid #111;font-size:0.72rem;cursor:pointer;transition:color 0.12s;}
+  .dist-item:hover{color:var(--gold);}
+  .dist-coord{font-family:'Cinzel',serif;font-size:0.48rem;color:#333;min-width:26px;}
+  .dist-name{color:var(--parchment);}
+  .dist-tag{font-style:italic;color:#2A2A2A;font-size:0.6rem;}
+  .dist-count{font-size:0.66rem;color:#333;font-style:italic;margin-top:6px;}
+  .export-area{width:100%;background:#060606;border:1px solid #1A1A1A;color:#4A6A4A;font-family:monospace;font-size:0.56rem;padding:6px;resize:vertical;min-height:70px;outline:none;}
+  .legend-cols{display:flex;flex-wrap:wrap;gap:6px 24px;}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:0.7rem;color:var(--mist);}
+  .legend-swatch{width:9px;height:9px;border:1px solid;flex-shrink:0;}
+  .sw-power{background:#1A0A0A;border-color:var(--blood);}
+  .sw-nature-n{background:#0A1A0A;border-color:#2A5A2A;}
+  .sw-nature-c{background:#0A180A;border-color:#1E5A1E;}
+  .sw-nature-s{background:#0C1C0A;border-color:#225022;}
+  .sw-knowledge{background:#0A0A1A;border-color:#2A2A6A;}
+  .sw-brujah{background:#1A0E08;border-color:#5A2A10;}
+  .sw-port{background:#0C1E30;border-color:#1E5080;}
+  .sw-placed{background:#131313;border-color:#2A2A2A;}
+  .sw-unplaced{background:#0E0E0E;border-color:#1E1E1E;border-style:dashed;}
+  #drag-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:0.9;border:2px solid var(--gold);background:#0D0D0D;width:72px;height:72px;display:none;flex-direction:column;align-items:center;justify-content:center;padding:4px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,0.8);transform:translate(-50%,-50%);}
+  #drag-ghost .g-name{font-family:'Cinzel',serif;font-size:0.42rem;color:var(--gold);line-height:1.2;}
+  #drag-ghost .g-tag{font-size:0.4rem;font-style:italic;color:#666;margin-top:2px;}
+  #drag-ghost .g-icon{font-size:0.78rem;margin-bottom:2px;}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111;border:1px solid var(--gold-dim);color:var(--gold);font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;padding:6px 14px;opacity:0;transition:opacity 0.25s;pointer-events:none;z-index:9998;white-space:nowrap;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>EPHEMERA</h1>
+    <div class="subtitle">City Grid — Surface Layer v1.0 — 7 × 6 — 42 Districts</div>
+    <div class="divider"></div>
+  </header>
+  <div class="map-section">
+    <div class="map-label">Click to edit · Drag to swap · Drag from tray · Drag to tray to remove</div>
+    <div class="outer-frame">
+      <div class="frame-corner"></div>
+      <div class="frame-barrens" style="border-bottom:none;"><span class="frame-label bn">The Barrens — Northern Forest</span></div>
+      <div class="frame-corner"></div>
+      <div class="frame-barrens" style="border-right:none;"><span class="frame-label bw">The Barrens</span></div>
+      <div class="city-block">
+        <div class="coord-row" id="col-labels"></div>
+        <div style="display:flex;gap:3px;">
+          <div class="coord-col" id="row-labels"></div>
+          <div class="grid" id="grid"></div>
+        </div>
+      </div>
+      <div class="frame-water"><span class="frame-label we">The Harbor</span></div>
+      <div class="frame-corner"></div>
+      <div class="frame-barrens" style="border-top:none;"><span class="frame-label bs">The Barrens — Southern Forest</span></div>
+      <div class="frame-corner"></div>
+    </div>
+  </div>
+  <div class="tray-section">
+    <div class="tray-header-row">
+      <span class="tray-title">District Tray</span>
+      <span class="tray-hint">Drag onto map to place · Drag a map district here to store it</span>
+    </div>
+    <div class="tray-tabs" id="tray-tabs"></div>
+    <div class="tray-filters" id="tray-filters"></div>
+    <div class="tray-drop-zone" id="tray-zone"></div>
+  </div>
+  <div class="toolbar">
+    <div class="toolbar-tabs">
+      <button class="tool-tab active" data-panel="edit" onclick="switchTab('edit',this)">Edit District <span id="edit-key-badge" style="font-size:0.36rem;color:#444;margin-left:3px;"></span></button>
+      <button class="tool-tab" data-panel="districts" onclick="switchTab('districts',this)">Districts <span id="dist-badge" style="font-size:0.36rem;color:#444;margin-left:3px;"></span></button>
+      <button class="tool-tab" data-panel="export" onclick="switchTab('export',this)">Export</button>
+      <button class="tool-tab" data-panel="legend" onclick="switchTab('legend',this)">Legend</button>
+    </div>
+    <div class="tool-panel open" id="panel-edit">
+      <div id="editor-body"><div class="editor-placeholder">Click any cell on the map to edit it here.</div></div>
+    </div>
+    <div class="tool-panel" id="panel-districts">
+      <div class="dist-cols" id="dist-list"></div>
+      <div class="dist-count" id="dist-count"></div>
+    </div>
+    <div class="tool-panel" id="panel-export">
+      <div style="font-size:0.68rem;color:#333;margin-bottom:5px;font-style:italic;">Copy and paste into chat to share your layout with Claude.</div>
+      <textarea class="export-area" id="export-area" readonly></textarea>
+      <button class="btn btn-save" style="width:100%;margin-top:5px;" onclick="copyExport()">Copy to Clipboard</button>
+    </div>
+    <div class="tool-panel" id="panel-legend">
+      <div class="legend-cols">
+        <div class="legend-item"><div class="legend-swatch sw-power"></div>Methuselah Anchor — Power</div>
+        <div class="legend-item"><div class="legend-swatch sw-nature-n"></div>Fenwick Woods — North</div>
+        <div class="legend-item"><div class="legend-swatch sw-nature-c"></div>Fenwick Woods — Central</div>
+        <div class="legend-item"><div class="legend-swatch sw-nature-s"></div>Fenwick Woods — South</div>
+        <div class="legend-item"><div class="legend-swatch sw-knowledge"></div>Methuselah Anchor — Knowledge</div>
+        <div class="legend-item"><div class="legend-swatch sw-brujah"></div>Brujah Corridor</div>
+        <div class="legend-item"><div class="legend-swatch sw-port"></div>Port Ephem</div>
+        <div class="legend-item"><div class="legend-swatch sw-placed"></div>District — Named</div>
+        <div class="legend-item"><div class="legend-swatch sw-unplaced"></div>District — Unnamed</div>
+        <div class="legend-item" style="color:#3A3A2A;font-size:0.62rem;">⊞ = Interior map planned</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="drag-ghost"></div>
+<div class="toast" id="toast"></div>
+<script>
+const COLS=['A','B','C','D','E','F','G'];
+const ROWS=['0','1','2','3','4','5'];
+const TYPES=[
+  {id:'unplaced',label:'Unnamed'},{id:'placed',label:'District'},
+  {id:'brujah',label:'Brujah'},{id:'port',label:'Port'},
+  {id:'anchor-power',label:'Anchor: Power'},{id:'anchor-nature',label:'Fenwick N.'},
+  {id:'anchor-nature-central',label:'Fenwick Central'},{id:'anchor-nature-south',label:'Fenwick S.'},
+  {id:'anchor-knowledge',label:'Anchor: Knowledge'},
+];
+const SUGGESTIONS=[
+  {id:'p1',name:'The Manse',tag:'Old Money / Fortified',cat:'power',desc:'Where old Kindred wealth crystallized into architecture. Fortified townhouses, sealed gardens. The kind of power that doesn\'t need to be visible.'},
+  {id:'p2',name:'Pallister Square',tag:'Ceremonial / Civic',cat:'power',desc:'Where civic ceremonies happen. Neutral by old treaty — which means everyone wants to break that treaty.'},
+  {id:'p3',name:'Rope & Crown',tag:'First Settlement',cat:'power',desc:'The original port quarter. Where founding documents were signed in a building that no longer exists. Every successor stands on contested claims.'},
+  {id:'i1',name:'The Furnace',tag:'Heavy Industry',cat:'industry',desc:'Foundries, heavy manufacturing. Mortal unions here have teeth. The last three attempts to break them ended badly.'},
+  {id:'i2',name:'The Railhead',tag:'Transit / Logistics',cat:'industry',desc:'Terminus district. Where goods enter and leave overland. The last Prince held it personally. Ungoverned since the purge.'},
+  {id:'i3',name:'The Stamp',tag:'Print / Media / Records',cat:'industry',desc:'Newspaper archives, printing presses. The institutional memory of the city in paper form. A fire here has been attempted twice.'},
+  {id:'i4',name:'Black Hollow',tag:'Sealed / Contaminated',cat:'industry',desc:'A fenced, legally contested former industrial site. Mortals avoid it for liability reasons. Something was buried here during the purge.'},
+  {id:'m1',name:'The Exchange',tag:'Commodity Markets',cat:'money',desc:'Trading floors, old mercantile wealth. Older money than The Loop, more European, more quietly ruthless.'},
+  {id:'m2',name:'Gilded Row',tag:'Private Wealth',cat:'money',desc:'Private banks behind unmarked doors. Not for display — for accumulation. Nothing is priced here and everything is for sale.'},
+  {id:'c1',name:'The Athenaeum',tag:'Library / Archive',cat:'culture',desc:'The great library. Six sub-basements not in the floor plans. The Tremere had a reading room here once. It was sealed.'},
+  {id:'c2',name:'The Promenade',tag:'Boulevard / Social',cat:'culture',desc:'Wide streets, outdoor cafes. Toreador hunting ground and political theater. What happens here is repeated everywhere by the next night.'},
+  {id:'r1',name:'The Briars',tag:'Dense / Political',cat:'residential',desc:'High-density residential nobody wanted and everyone ended up in. Controlling The Briars means controlling a significant block of mortal political will.'},
+  {id:'r2',name:'Ashdown',tag:'Lower Middle / Stable',cat:'residential',desc:'Stable, unglamorous, overlooked. The kind of neighborhood with no reason for Kindred interest — which is why several have held havens here for decades undisturbed.'},
+  {id:'r3',name:'Saint Anselm\'s',tag:'Parish / Dense Community',cat:'residential',desc:'Built around a church and its social infrastructure. Mortal community dense enough to notice strangers the same evening they arrive.'},
+  {id:'r4',name:'Millhaven',tag:'Industrial / Residential',cat:'residential',desc:'Workers stayed in company housing after the companies left. Nobody knows who owns the buildings now.'},
+  {id:'mg1',name:'The Trestle',tag:'Bridge / Infrastructure',cat:'margins',desc:'Where the city\'s halves connect. Whoever controls The Trestle controls movement. Classic contested ground.'},
+  {id:'mg2',name:'The Narrows',tag:'Contested / No Man\'s Land',cat:'margins',desc:'Wedged between territories. Too contested to hold long, too valuable to abandon.'},
+  {id:'mg3',name:'Gutter Lane',tag:'Off-Grid / Informal',cat:'margins',desc:'Exists between districts officially. No records, no city services. Mortals here are in no database.'},
+  {id:'e1',name:'Greyfield',tag:'Transit / Anonymous',cat:'edges',desc:'Airport-adjacent, cold, transit-oriented. Kindred use it to move people and things without Port Ephem\'s scrutiny.'},
+  {id:'h1',name:'Crestmoor',tag:'Plague District',cat:'history',desc:'Historically quarantined, now reclaimed but never fully trusted. The architecture is beautiful and wrong.'},
+  {id:'h2',name:'The Vaults',tag:'Underground / Victorian',cat:'history',desc:'Defined by what\'s beneath — sealed Victorian vaults, prohibition tunnels, civil defense chambers. The sub-surface is a different city entirely.'},
+];
+const SUG_CATS=[
+  {id:'all',label:'All'},{id:'power',label:'Power'},{id:'industry',label:'Industry'},
+  {id:'money',label:'Money'},{id:'culture',label:'Culture'},{id:'residential',label:'Residential'},
+  {id:'margins',label:'Margins'},{id:'edges',label:'Edges'},{id:'history',label:'History'},
+];
+
+function e(n='',t='',y='unplaced',i='',d='',iN=''){return{name:n,tag:t,type:y,icon:i,desc:d,interiorNote:iN};}
+let state={};ROWS.forEach(r=>COLS.forEach(c=>{state[c+r]=e();}));
+
+state['A0']=e('The Verge','Barrens Edge','placed','','The northernmost district, pressed against the Barrens treeline. Where the city stops feeling like a city. Gangrel territory by informal agreement that has never been tested.');
+state['A1']=e('Caldwell Park','Civic / Transit','placed','','Civic hub and main transit interchange. City infrastructure control passes through here.');
+state['A2']=e('The Pipes','Layered Immigrant Quarter','placed','','The oldest immigrant neighborhood, successive communities displacing each other. Current residents are the fourth wave. The buildings remember all of them.');
+state['A3']=e('The Concord','Neutral Ground','placed','','Historically where rival factions negotiated truces. Embassies, law offices, old hotels that never close.');
+state['A4']=e('The Wayside','Transient / Anonymous','placed','','Rooming houses, weekly lets, short-term tenancies. The most anonymous residential district in the city. A Kindred who needs to disappear for a season disappears here.');
+state['A5']=e('Hallow End','Pre-Grid Enclave','placed','','A residential enclave that predates the surrounding grid. Still bounded on two sides by its original walls. Residents are long-standing, insular, and remember things. Mortal memory here goes back unusually far.');
+state['B0']=e('Pale Court','Pre-Grid Quarter','placed','','The oldest part of the city, built before any grid was imposed. Streets curve for no reason. Dead ends that weren\'t dead ends originally. Maps of it are always slightly wrong.');
+state['B1']=e('Ashwick','Mid-Century Residential','placed','','Post-war residential, neither rich nor poor, the unremarkable middle. Every Kindred in Ephemera has a backup haven somewhere in Ashwick. Nobody notices anything here.');
+state['B2']=e('The Crescent','Victorian / Upper Middle','placed','','Curved Victorian terraces, uniform facades, small private gardens. Respectable, slightly faded, deeply proud of itself. Several long-tenured Kindred maintain havens here under human identities three generations deep.');
+state['B3']=e('The Ledger','Law / Finance / Records','placed','','Insurance firms, law offices, title registries. Where the paper reality of the surrounding neighborhoods is recorded — property transfers, identity records, deaths. The building housing the main archive has been occupied by the same firm since 1887, with the same letterhead, and apparently the same senior partner. His portrait in the lobby has never been updated.');
+state['B4']=e('Duskfield','Managed Decline','placed','','City services quietly being withdrawn, properties quietly being acquired. Three Kindred factions are buying separately without knowing about the others. Something is being assembled here at a scale that takes decades.');
+state['B5']=e('The Margin','City Edge / Transitional','placed','','Neither city nor wilderness. Where urban planning stopped and something else began. Buildings are started and abandoned with unusual regularity.');
+state['C0']=e('Sable Court','Upper Residential','placed','','Wealthy residential. Not old money — new money that bought old architecture. Secure, insular, aspirational.');
+state['C1']=e('The Residency','Consular / Foreign','placed','','Foreign money, old-world Kindred with credentials no one questions. Nobody claims it openly. Everybody cultivates it quietly.');
+state['C2']=e('The Loop Exchange','Financial / Center','anchor-power','🏛','The old heart of Ephemera. Oldest financial infrastructure. The Founder sleeps beneath the oldest bank vault.',"INTERIOR MAP PLANNED: Ash Row — Prince's last stand, SI purge scar, Mr. Aldric redevelopment zone.");
+state['C3']=e('Ashford Heights','Academic / Tremere','anchor-knowledge','📚','Oldest university in the city. The Architect sleeps beneath. Thaumaturgical workings behave differently here. Students report shared dreams.','INTERIOR MAP PLANNED: The Chantry — Dr. Voss rebuild target. Tremere institutional infrastructure.');
+state['C4']=e('Wicker Cross','Night Economy / Permissive','placed','','Where the city\'s night economy lives — bars, late venues, unlicensed establishments. Residents are accustomed to strangers. Hunting is easy. Masquerade incidents are easy to explain as drunk behavior. Consequently, everyone has a haven here.');
+state['C5']=e('Coalgate','Post-Industrial / Transitional','placed','','The working-class district that outlasted its industrial reason for being. A neighborhood figuring out what it is now. Easy to pass through. Hard to stay without explanation.');
+state['D0']=e('Saint Erasmus','Cathedral / Hospital','placed','','Old religious architecture, hospital with long history. Something old is buried under the foundation and it isn\'t a saint.');
+state['D1']=e('Sovereign Hill','Civic Authority','placed','','City hall, courts, records. Mortal political machine. Kindred who own it own the paper trail — permits, identities, property records.');
+state['D2']=e('North Fenwick Woods','The Park — North','anchor-nature','🌲',"The northern half of the city's Central Park. Old-growth trees, formal paths, open lawns. The Methuselah root system runs beneath both halves.");
+state['D3']=e('Fenwick Woods Central','The Heart — Convergence','anchor-nature-central','🌳','The oldest part of the park and the quietest. Where the root systems of the northern and southern halves meet. The gardeners who maintain this section are replaced every few years. Things buried here do not stay where they are put. Visitors report returning to the same clearing without meaning to.','Mechanical note: the seal is weakest at this convergence point. The deepest Warrens level connects directly beneath D3. Vitae Corrupta seeded here would have maximum effect on the sleeping Methuselahs. Extended time in this cell triggers the temporal disorientation Condition.');
+state['D4']=e('South Fenwick Woods','The Park — South','anchor-nature-south','🌲','The southern half of Fenwick Woods. Wilder, less maintained. At night something moves here that is not wind and not animal.');
+state['D5']=e('Fenwick Heights','Residential','placed','','Residential district bordering the southern park edge. Old money, quiet streets. Pre-purge Kindred had havens here.');
+state['E0']=e('Greywarden','Police / Institutional','placed','','Built around a precinct house and a corrections facility. Mortal law presence is heavy and constant. Kindred who operate here do so with exceptional care or not at all.');
+state['E1']=e('The Loom','Fashion / Textile / Media','placed','','Where image is manufactured — fashion houses, advertising agencies, a television studio. Toreador influence is heavy here, sometimes literally.');
+state['E2']=e('New Promenade','Arts / Toreador','anchor-power','🎭','The cultural heart. Sealed 19th century theater above. Serafina sleeps beneath. Obsessive creative frenzies. Art appears overnight.');
+state['E3']=e('The Conservatory','Music / Performance','placed','','Concert halls, recording studios, session musicians. Sound carries differently here at night. Toreador and Malkavian both want it and cannot agree on why.');
+state['E4']=e('Coppergate','Gentrifying','placed','','New money moving in, old residents moving out. The transition creates exactly the kind of social churn that feeds on.');
+state['E5']=e('Coalgate','Post-Industrial / Transitional','placed','','The working-class district that outlasted its industrial reason for being. A neighborhood figuring out what it is now. Easy to pass through. Hard to stay without explanation.');
+state['F0']=e('The Tallow','Slaughterhouse / Cold Storage','placed','','Meatpacking, rendering, cold storage. The smell never quite leaves. Feeding is easy and extremely unsubtle. The Nosferatu have a secondary warren entrance beneath the oldest cold storage facility.');
+state['F1']=e('Harbor Point','Brujah Corridor / South','brujah','','Southern tip of the Brujah dockside corridor. Remote, overlooked, exactly the kind of place a Barony gets built without anyone noticing.');
+state['F2']=e('Old Founding','First City Block','placed','','The original city block. Archaeologists have been requesting excavation permits for forty years. They keep being denied by different offices with identical form letters.');
+state['F3']=e('The Divide','Brujah Corridor','brujah','','Southern edge of the Brujah dockside corridor. The fault line between working waterfront and the rest of the city.');
+state['F4']=e('Cinder Row','Abandoned Industrial','placed','','Former factory district, half-demolished, half-squatted. Artists, criminals, the dispossessed. The city forgot about it after the purge. Something moved in.');
+state['F5']=e('The Midden','Waste / Disposal','placed','','Waste processing, the infrastructure of disposal. If you need something to disappear completely, this is where it goes.');
+state['G0']=e('Coldwater','Northern Edge / Industry','placed','','Where the city\'s water infrastructure begins — reservoirs, filtration, pumping stations. Cold, utilitarian. A single point of control for the city\'s water supply.');
+state['G1']=e('Irongate','Brujah Corridor / North','brujah','','Northern entry point of the Brujah dockside corridor. Industrial district with a hard edge.');
+state['G2']=e('Port Ephem','The Harbor','port','⚓',"The port. The waterfront. What everyone means when they say they're going to the harbor. Port Ephem is what locals call it.");
+state['G3']=e('The Yards','Brujah Corridor / Industrial','brujah','','Industrial heart of the Brujah corridor. Rail yards, warehouses, heavy labor. Sabbat artifact scatter location.');
+state['G4']=e('Vellum Row','Tenement / Working Class','placed','','Dense working-class housing, immigrant history layered six generations deep. Mortal communities tight and suspicious of outsiders.');
+state['G5']=e('Rotten Wharf','Derelict Waterfront','placed','','The part of the waterfront Port Ephem pretends doesn\'t exist. Decommissioned piers, salvage operations, things that arrive without paperwork. Nosferatu have informants in every dry dock.');
+
+const placedNames=new Set(Object.values(state).map(d=>d.name).filter(Boolean));
+let traySuggestions=SUGGESTIONS.filter(s=>!placedNames.has(s.name));
+let trayCustom=[];
+let activeTab='suggestions',activeCat='all';
+let selectedKey=null,dragSourceKey=null,dragSugId=null,dragOverKey=null;
+const ghost=document.getElementById('drag-ghost');
+
+function switchTab(id,btn){
+  document.querySelectorAll('.tool-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open'));
+  btn.classList.add('active');document.getElementById('panel-'+id).classList.add('open');
+  if(id==='districts')renderDistList();if(id==='export')renderExport();
+}
+document.getElementById('col-labels').innerHTML=COLS.map(c=>`<div class="coord-label">${c}</div>`).join('');
+document.getElementById('row-labels').innerHTML=ROWS.map(r=>`<div class="coord-label-side">${r}</div>`).join('');
+
+function renderGrid(){
+  const g=document.getElementById('grid');g.innerHTML='';
+  ROWS.forEach(row=>{COLS.forEach(col=>{
+    const key=col+row,d=state[key]||e();
+    const cell=document.createElement('div');
+    cell.className='cell t-'+d.type+(d.interiorNote?' has-interior':'');
+    if(key===selectedKey)cell.classList.add('selected');
+    cell.dataset.key=key;cell.draggable=true;
+    cell.innerHTML=`<div class="cell-num">${key}</div>${d.icon?`<div class="cell-icon">${d.icon}</div>`:''}${d.name?`<div class="cell-name">${d.name}</div>`:''}${d.tag?`<div class="cell-tag">${d.tag}</div>`:''}`;
+    cell.addEventListener('click',()=>{
+      if(dragSourceKey||dragSugId)return;
+      selectedKey=key;renderGrid();openEditor(key);
+      document.querySelectorAll('.tool-tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open'));
+      document.querySelector('[data-panel="edit"]').classList.add('active');
+      document.getElementById('panel-edit').classList.add('open');
+    });
+    cell.addEventListener('dragstart',(ev)=>{
+      dragSourceKey=key;dragSugId=null;cell.classList.add('dragging');ev.dataTransfer.effectAllowed='move';
+      setGhost(d.icon,d.name||'Empty',d.tag);ghost.style.display='flex';ev.dataTransfer.setDragImage(ghost,36,36);setTimeout(()=>ghost.style.display='none',0);
+    });
+    cell.addEventListener('dragend',()=>{
+      dragSourceKey=null;dragSugId=null;dragOverKey=null;
+      document.querySelectorAll('.cell').forEach(c=>c.classList.remove('dragging','drag-over'));
+      document.getElementById('tray-zone').classList.remove('tray-over');
+    });
+    cell.addEventListener('dragover',(ev)=>{
+      ev.preventDefault();
+      if(dragOverKey!==key){document.querySelectorAll('.cell').forEach(c=>c.classList.remove('drag-over'));dragOverKey=key;if(key!==dragSourceKey)cell.classList.add('drag-over');}
+    });
+    cell.addEventListener('dragleave',()=>cell.classList.remove('drag-over'));
+    cell.addEventListener('drop',(ev)=>{
+      ev.preventDefault();cell.classList.remove('drag-over');
+      if(dragSugId){
+        const sug=findCard(dragSugId);if(!sug)return;
+        const ex=state[key];if(ex&&ex.name)sendToTray(ex);
+        state[key]=e(sug.name,sug.tag,'placed','',sug.desc||'');
+        removeFromTray(dragSugId);dragSugId=null;
+        renderGrid();renderTabs();renderFilters();renderTray();showToast(`Placed ${sug.name} at ${key}`);
+      } else if(dragSourceKey&&dragSourceKey!==key){
+        const tmp=JSON.parse(JSON.stringify(state[dragSourceKey]));
+        state[dragSourceKey]=JSON.parse(JSON.stringify(state[key]));
+        state[key]=tmp;
+        if(selectedKey===dragSourceKey||selectedKey===key)openEditor(selectedKey);
+        const from=dragSourceKey;dragSourceKey=null;renderGrid();showToast(`Swapped ${from}↔${key}`);
+      }
+    });
+    g.appendChild(cell);
+  });});
+  let n=0;ROWS.forEach(r=>COLS.forEach(c=>{if(state[c+r]&&state[c+r].name)n++;}));
+  document.getElementById('dist-badge').textContent=n;
+  document.getElementById('edit-key-badge').textContent=selectedKey||'';
+}
+function findCard(id){return traySuggestions.find(s=>s.id===id)||trayCustom.find(c=>c.id===id)||null;}
+function removeFromTray(id){traySuggestions=traySuggestions.filter(s=>s.id!==id);trayCustom=trayCustom.filter(c=>c.id!==id);}
+function sendToTray(d){
+  if(!d||!d.name)return;
+  const m=SUGGESTIONS.find(s=>s.name===d.name);
+  if(m){if(!traySuggestions.find(s=>s.id===m.id))traySuggestions.push({...m});}
+  else{const cid='c_'+d.name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');if(!trayCustom.find(c=>c.id===cid))trayCustom.push({id:cid,...d});}
+}
+function renderTabs(){
+  const bar=document.getElementById('tray-tabs');bar.innerHTML='';
+  [{id:'suggestions',label:'Suggestions',count:traySuggestions.length},{id:'custom',label:'Custom',count:trayCustom.length}].forEach(tab=>{
+    const btn=document.createElement('button');btn.className='tray-tab'+(activeTab===tab.id?' active':'');
+    btn.innerHTML=`${tab.label}<span class="tc">(${tab.count})</span>`;
+    btn.addEventListener('click',()=>{activeTab=tab.id;renderTabs();renderFilters();renderTray();});
+    bar.appendChild(btn);
+  });
+  document.getElementById('tray-filters').style.display=activeTab==='suggestions'?'flex':'none';
+}
+function renderFilters(){
+  const bar=document.getElementById('tray-filters');bar.innerHTML='';
+  if(activeTab!=='suggestions')return;
+  SUG_CATS.forEach(cat=>{
+    const count=cat.id==='all'?traySuggestions.length:traySuggestions.filter(s=>s.cat===cat.id).length;
+    const btn=document.createElement('button');btn.className='filter-btn'+(activeCat===cat.id?' active':'');
+    btn.textContent=`${cat.label} (${count})`;
+    btn.addEventListener('click',()=>{activeCat=cat.id;renderFilters();renderTray();});
+    bar.appendChild(btn);
+  });
+}
+function renderTray(){
+  const zone=document.getElementById('tray-zone');zone.innerHTML='';
+  const items=activeTab==='suggestions'?(activeCat==='all'?traySuggestions:traySuggestions.filter(s=>s.cat===activeCat)):trayCustom;
+  if(!items.length){
+    const em=document.createElement('div');em.className='tray-empty';
+    em.textContent=activeTab==='custom'?'No custom districts stored. Drag any map district here to save it.':'No suggestions remaining in this category.';
+    zone.appendChild(em);return;
+  }
+  items.forEach(sug=>{
+    const isC=activeTab==='custom';
+    const card=document.createElement('div');
+    card.className='sug-card'+(isC?' custom-card':' cat-'+(sug.cat||'placed'));
+    card.dataset.sugId=sug.id;card.draggable=true;
+    card.innerHTML=`<div class="sug-badge">${isC?'custom':sug.cat}</div><div class="sug-name">${sug.name}</div><div class="sug-tag">${sug.tag}</div><div class="sug-desc">${(sug.desc||'').substring(0,90)}…</div>`;
+    card.addEventListener('dragstart',(ev)=>{
+      dragSugId=sug.id;dragSourceKey=null;card.classList.add('dragging-card');ev.dataTransfer.effectAllowed='move';
+      setGhost('',sug.name,sug.tag);ghost.style.display='flex';ev.dataTransfer.setDragImage(ghost,36,36);setTimeout(()=>ghost.style.display='none',0);
+    });
+    card.addEventListener('dragend',()=>{dragSugId=null;document.querySelectorAll('.sug-card').forEach(c=>c.classList.remove('dragging-card'));document.querySelectorAll('.cell').forEach(c=>c.classList.remove('drag-over'));});
+    zone.appendChild(card);
+  });
+}
+function initTrayDrop(){
+  const zone=document.getElementById('tray-zone');
+  zone.addEventListener('dragover',(ev)=>{if(!dragSourceKey)return;ev.preventDefault();zone.classList.add('tray-over');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('tray-over'));
+  zone.addEventListener('drop',(ev)=>{
+    ev.preventDefault();zone.classList.remove('tray-over');
+    if(!dragSourceKey)return;
+    const d=state[dragSourceKey];
+    if(d&&d.name){
+      sendToTray(d);
+      if(selectedKey===dragSourceKey){selectedKey=null;document.getElementById('editor-body').innerHTML=`<div class="editor-placeholder">Click any cell on the map to edit it here.</div>`;}
+      state[dragSourceKey]=e();dragSourceKey=null;
+      showToast('Returned to tray');renderGrid();renderTabs();renderFilters();renderTray();
+    }
+  });
+}
+function openEditor(key){
+  const d=state[key]||e();
+  const tb=TYPES.map(t=>`<button class="type-btn tb-${t.id}${d.type===t.id?' active':''}" onclick="setType('${key}','${t.id}')">${t.label}</button>`).join('');
+  document.getElementById('editor-body').innerHTML=`
+    <div class="edit-grid">
+      <div>
+        <div class="field-group"><label class="field-label">Name</label><input type="text" id="ed-name" value="${esc(d.name)}"></div>
+        <div class="field-group"><label class="field-label">Tag</label><input type="text" id="ed-tag" value="${esc(d.tag)}"></div>
+        <div class="field-group"><label class="field-label">Icon</label><input type="text" id="ed-icon" value="${esc(d.icon)}" style="width:80px;"></div>
+        <div class="field-group"><label class="field-label">Type</label><div class="type-grid">${tb}</div></div>
+        <div class="btn-row">
+          <button class="btn btn-save" onclick="saveCell('${key}')">Save</button>
+          <button class="btn" onclick="clearCell('${key}')">Clear</button>
+          <button class="btn btn-delete" onclick="promptDelete('${key}')">Delete</button>
+        </div>
+        <div class="confirm-overlay" id="confirm-overlay">
+          <div class="confirm-text">Delete <strong>${esc(d.name||key)}</strong>?</div>
+          <div class="confirm-btns">
+            <button class="btn-confirm-yes" onclick="confirmDelete('${key}')">Yes</button>
+            <button class="btn-confirm-no" onclick="cancelDelete()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="field-group"><label class="field-label">Description</label><textarea id="ed-desc">${esc(d.desc)}</textarea></div>
+        <div class="interior-note"><div class="interior-note-label">⊞ Interior / Mechanical Notes</div><textarea id="ed-interior">${esc(d.interiorNote)}</textarea></div>
+      </div>
+    </div>`;
+}
+function setType(k,t){if(!state[k])state[k]=e();state[k].type=t;document.querySelectorAll('.type-btn').forEach(b=>{b.classList.remove('active');if(b.classList.contains('tb-'+t))b.classList.add('active');});renderGrid();}
+function saveCell(k){
+  if(!state[k])state[k]=e();
+  state[k].name=document.getElementById('ed-name').value.trim();
+  state[k].tag=document.getElementById('ed-tag').value.trim();
+  state[k].icon=document.getElementById('ed-icon').value.trim();
+  state[k].desc=document.getElementById('ed-desc').value.trim();
+  state[k].interiorNote=document.getElementById('ed-interior').value.trim();
+  if(state[k].name&&state[k].type==='unplaced')state[k].type='placed';
+  renderGrid();showToast('Saved '+k);
+}
+function clearCell(k){const iN=state[k]?state[k].interiorNote:'';state[k]=e();state[k].interiorNote=iN;openEditor(k);renderGrid();showToast('Cleared '+k);}
+function promptDelete(k){document.getElementById('confirm-overlay').classList.add('show');}
+function cancelDelete(){const el=document.getElementById('confirm-overlay');if(el)el.classList.remove('show');}
+function confirmDelete(k){state[k]=e();selectedKey=null;document.getElementById('editor-body').innerHTML=`<div class="editor-placeholder">Click any cell on the map to edit it here.</div>`;renderGrid();showToast('Deleted');}
+function renderDistList(){
+  const list=document.getElementById('dist-list');list.innerHTML='';let p=0,u=0;
+  ROWS.forEach(r=>COLS.forEach(c=>{const k=c+r,d=state[k];
+    if(d&&d.name){p++;const li=document.createElement('div');li.className='dist-item';
+      li.innerHTML=`<span class="dist-coord">${k}</span><span class="dist-name">${d.name}</span>${d.tag?`<span class="dist-tag"> — ${d.tag}</span>`:''}`;
+      li.addEventListener('click',()=>{
+        selectedKey=k;renderGrid();openEditor(k);
+        document.querySelectorAll('.tool-tab').forEach(t=>t.classList.remove('active'));
+        document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open'));
+        document.querySelector('[data-panel="edit"]').classList.add('active');
+        document.getElementById('panel-edit').classList.add('open');
+        window.scrollTo({top:0,behavior:'smooth'});
+      });list.appendChild(li);}else u++;
+  }));
+  document.getElementById('dist-count').textContent=`${p} named · ${u} unnamed`;
+}
+function renderExport(){
+  const out={};Object.keys(state).sort().forEach(k=>{const d=state[k];
+    if(d.name||d.type!=='unplaced'||d.interiorNote){out[k]={name:d.name,tag:d.tag,type:d.type,icon:d.icon,desc:d.desc};if(d.interiorNote)out[k].interiorNote=d.interiorNote;}
+  });
+  document.getElementById('export-area').value=JSON.stringify(out,null,2);
+}
+function copyExport(){const ta=document.getElementById('export-area');ta.select();document.execCommand('copy');showToast('Copied to clipboard');}
+function setGhost(icon,name,tag){ghost.innerHTML=`${icon?`<div class="g-icon">${icon}</div>`:''}${name?`<div class="g-name">${name}</div>`:'<div class="g-name" style="color:#333">Empty</div>'}<div class="g-tag">${tag||''}</div>`;}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+renderGrid();renderTabs();renderFilters();renderTray();initTrayDrop();
+</script>
+</body>
+</html>
