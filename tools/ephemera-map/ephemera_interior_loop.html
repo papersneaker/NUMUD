@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ephemera — The Loop Exchange (Interior)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+  :root{
+    --blood:#8B0000;--blood-bright:#CC0000;--gold:#C9A84C;--gold-dim:#7A6230;
+    --parchment:#E8DCC8;--parchment-bright:#F5EDD8;--mist:#AAA;--void:#0A0A0A;
+    --cell:64px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--void);color:var(--parchment);font-family:'Crimson Text',serif;font-size:16px;
+    background-image:radial-gradient(ellipse at 30% 0%,rgba(139,0,0,0.06) 0%,transparent 55%);
+    user-select:none;padding-bottom:60px;}
+  .page{display:flex;flex-direction:column;align-items:flex-start;padding:20px 0 0 20px;}
+  header{width:100%;padding:0 20px 12px 0;}
+  .breadcrumb{font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.14em;color:#666;text-transform:uppercase;margin-bottom:6px;}
+  .breadcrumb span{color:var(--gold-dim);}
+  h1{font-family:'Cinzel',serif;font-size:1.6rem;font-weight:900;letter-spacing:0.25em;color:var(--blood-bright);text-shadow:0 0 24px rgba(139,0,0,0.45);margin-bottom:2px;}
+  .subtitle{font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.2em;color:var(--gold-dim);text-transform:uppercase;}
+  .divider{width:220px;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dim),transparent);margin:7px 0 0;}
+  .map-section{margin-top:14px;}
+  .map-hint{font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.1em;color:#555;text-transform:uppercase;margin-bottom:6px;}
+  .map-frame{display:grid;grid-template-columns:56px auto 56px;grid-template-rows:22px auto 22px;}
+  .edge-label{display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.08em;color:#3A7A3A;text-transform:uppercase;}
+  .edge-n{grid-column:2;grid-row:1;}
+  .edge-s{grid-column:2;grid-row:3;}
+  .edge-w{grid-column:1;grid-row:2;writing-mode:vertical-rl;transform:rotate(180deg);}
+  .edge-e{grid-column:3;grid-row:2;writing-mode:vertical-rl;}
+  .grid-wrap{grid-column:2;grid-row:2;border:1px solid #2A2A2A;}
+  .interior-grid{display:grid;grid-template-columns:repeat(10,var(--cell));grid-template-rows:repeat(10,var(--cell));gap:0;}
+
+  /* BLOCKS */
+  .block{width:var(--cell);height:var(--cell);position:relative;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:3px;text-align:center;overflow:hidden;
+    cursor:pointer;transition:filter 0.08s;border:1px solid #222;}
+  .block:hover{filter:brightness(1.7);z-index:5;}
+  .block.selected{outline:2px solid var(--gold);outline-offset:-2px;z-index:6;}
+  .block.bld-highlight{outline:2px solid #4A9A4A;outline-offset:-2px;z-index:4;}
+  .block.bld-highlight.selected{outline:2px solid var(--gold);z-index:6;}
+
+  .block.bt-unset{background:#0D0D0D;border-color:#181818;}
+
+  /* BUILDING — warm dark brown, four mismatched squares as background texture behind text */
+  .block.bt-building{
+    background:#0F0B08;
+    border:1px solid #3A2A1A;
+  }
+  .block.bt-building::before{
+    content:'';position:absolute;pointer-events:none;z-index:0;
+    top:6px;left:5px;width:16px;height:14px;
+    background:#1A1108;border:1px solid #2E1E0E;
+    box-shadow:
+      20px -1px 0 0 #130E07, 20px -1px 0 1px #2A1A0A,
+      2px 18px 0 0 #161009,  2px 18px 0 1px #281808,
+      24px 14px 0 0 #110D07, 24px 14px 0 1px #241606;
+  }
+  .block.bt-building .block-coord,
+  .block.bt-building .block-icon,
+  .block.bt-building .block-name,
+  .block.bt-building .block-region-pip{position:relative;z-index:1;}
+
+  /* COURTYARD — building subtype, open-air feel: lighter stone centre */
+  .block.bt-courtyard{background:#111115;border:1px solid #2A2A3A;}
+  .block.bt-courtyard::after{
+    content:'';position:absolute;inset:10px;
+    background:#18181E;
+    border:1px solid #222228;
+    pointer-events:none;
+  }
+
+  /* STREET — asphalt with dashed centre line (EW default) */
+  .block.bt-street{background:#0C0C10;border-color:#1A1A22;border-top:2px solid #252530;border-bottom:2px solid #252530;border-left:1px solid #141418;border-right:1px solid #141418;}
+  .block.bt-street::before{content:'';position:absolute;left:8%;right:8%;top:50%;height:1px;background:repeating-linear-gradient(90deg,#2A2A3A 0px,#2A2A3A 6px,transparent 6px,transparent 12px);pointer-events:none;}
+
+  /* NS street variant — Exchange Passage, vertical centre dash */
+  .block.bt-street.street-ns{border-top:1px solid #141418;border-bottom:1px solid #141418;border-left:2px solid #252530;border-right:2px solid #252530;}
+  .block.bt-street.street-ns::before{left:50%;right:auto;top:8%;bottom:8%;width:1px;height:auto;background:repeating-linear-gradient(180deg,#2A2A3A 0px,#2A2A3A 6px,transparent 6px,transparent 12px);}
+
+  /* INTERSECTION — both EW and NS dashes crossing */
+  .block.bt-street.street-intersection{border:1px solid #1A1A22;}
+  .block.bt-street.street-intersection::before{left:8%;right:8%;top:50%;height:1px;width:auto;background:repeating-linear-gradient(90deg,#2A2A3A 0px,#2A2A3A 6px,transparent 6px,transparent 12px);}
+  .block.bt-street.street-intersection::after{content:'';position:absolute;left:50%;top:8%;bottom:8%;width:1px;background:repeating-linear-gradient(180deg,#2A2A3A 0px,#2A2A3A 6px,transparent 6px,transparent 12px);pointer-events:none;}
+
+  /* EDGE STREETS — subtle green tint on any street block at the grid boundary */
+  .block.bt-street.street-edge{background:#0A120A;border-color:#1A3020;}
+  .block.bt-street.street-edge.street-ns::before{background:repeating-linear-gradient(180deg,#1E3A22 0px,#1E3A22 6px,transparent 6px,transparent 12px);}
+  .block.bt-street.street-edge:not(.street-ns)::before{background:repeating-linear-gradient(90deg,#1E3A22 0px,#1E3A22 6px,transparent 6px,transparent 12px);}
+
+  /* PARKING LOT — street subtype, bay marking lines instead of centre dash */
+  .block.bt-parking-lot{background:#0A0A0E;border:1px solid #1A1A26;border-top:2px solid #202028;border-bottom:2px solid #202028;}
+  .block.bt-parking-lot::before{
+    content:'';position:absolute;inset:6px 4px;
+    background:repeating-linear-gradient(90deg,transparent 0px,transparent 10px,#1E1E2A 10px,#1E1E2A 11px);
+    pointer-events:none;
+  }
+
+  /* REGION TINTS — bright, high contrast */
+  .block.region-ash-row{background:#1A0505!important;border-color:#7A1515!important;box-shadow:inset 0 0 0 1px rgba(200,30,30,0.4);}
+  .block.region-founders-vault{background:#14100A!important;border-color:#7A5A15!important;box-shadow:inset 0 0 0 1px rgba(210,160,30,0.4);}
+  .block.region-aldric-zone{background:#05080F!important;border-color:#153080!important;box-shadow:inset 0 0 0 1px rgba(40,90,200,0.4);}
+  .block.region-exchange-floor{background:#05120A!important;border-color:#157050!important;box-shadow:inset 0 0 0 1px rgba(30,180,110,0.4);}
+
+  .block-coord{position:absolute;top:2px;left:3px;font-family:'Cinzel',serif;font-size:9px;color:#444;pointer-events:none;}
+  .exit-arrow{position:absolute;font-size:9px;color:#3A8A3A;pointer-events:none;line-height:1;z-index:2;}
+  .block-icon{font-size:14px;line-height:1;pointer-events:none;margin-bottom:1px;}
+  .block-name{font-family:'Cinzel',serif;font-size:9px;font-weight:600;line-height:1.2;
+    color:var(--parchment-bright);pointer-events:none;word-break:break-word;}
+  .bt-street .block-name,.bt-parking-lot .block-name{color:#3A4A3A;font-style:italic;font-size:8px;letter-spacing:0.06em;}
+  /* EW streets — name sits at top, clear of centre dash */
+  .bt-street:not(.street-ns) .block-name{position:absolute;top:13px;left:0;right:0;text-align:center;}
+  /* NS streets — name sits at top too, same treatment */
+  .bt-street.street-ns .block-name{position:absolute;top:13px;left:0;right:0;text-align:center;}
+  .bt-courtyard .block-name{color:#8A8A9A;font-style:italic;font-size:8px;}
+  .region-ash-row .block-name{color:#FFAAAA!important;}
+  .region-founders-vault .block-name{color:#FFD888!important;}
+  .region-aldric-zone .block-name{color:#88AAFF!important;}
+  .region-exchange-floor .block-name{color:#88FFCC!important;}
+  .block-region-pip{position:absolute;bottom:2px;right:2px;font-size:8px;font-family:'Cinzel',serif;
+    pointer-events:none;white-space:nowrap;overflow:hidden;max-width:90%;text-overflow:ellipsis;}
+  .region-ash-row .block-region-pip{color:#CC5555;}
+  .region-founders-vault .block-region-pip{color:#CC9933;}
+  .region-aldric-zone .block-region-pip{color:#5577CC;}
+  .region-exchange-floor .block-region-pip{color:#33AA77;}
+  .block-type-dot{position:absolute;bottom:3px;left:3px;width:5px;height:5px;border-radius:50%;pointer-events:none;}
+  .bt-street .block-type-dot,.bt-parking-lot .block-type-dot{background:#1E2A1E;}
+  .bt-courtyard .block-type-dot{background:#2A2A3A;}
+  .bt-street .block-coord,.bt-parking-lot .block-coord,.bt-courtyard .block-coord{color:#222;}
+  .bt-unset .block-type-dot{background:#222;}
+
+  /* TOOLBAR */
+  .toolbar{width:100%;padding-right:20px;margin-top:14px;}
+  .toolbar-tabs{display:flex;background:#0A0A0A;border:1px solid #1A1A1A;border-bottom:none;width:fit-content;}
+  .tool-tab{padding:6px 16px;background:#0A0A0A;border:none;border-right:1px solid #1A1A1A;
+    border-bottom:2px solid transparent;color:#555;font-family:'Cinzel',serif;font-size:12px;
+    letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.12s;flex-shrink:0;}
+  .tool-tab:last-child{border-right:none;}
+  .tool-tab:hover{color:#999;}
+  .tool-tab.active{color:var(--gold);border-bottom-color:var(--gold);background:#111;}
+  .tool-tab .tc{font-size:10px;color:#444;margin-left:3px;}
+  .tool-tab.active .tc{color:var(--gold-dim);}
+  .tool-panel{display:none;padding:14px;border:1px solid #1A1A1A;background:#0D0D0D;}
+  .tool-panel.open{display:block;}
+
+  /* EDITOR */
+  .edit-grid{display:grid;grid-template-columns:270px 1fr;gap:16px;}
+  .field-group{display:flex;flex-direction:column;gap:3px;margin-bottom:9px;}
+  .field-label{font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold-dim);}
+  input[type="text"],textarea,select{width:100%;background:#0A0A0A;border:1px solid #2A2A2A;
+    color:var(--parchment-bright);font-family:'Crimson Text',serif;font-size:15px;
+    padding:4px 7px;outline:none;transition:border-color 0.12s;}
+  input[type="text"]:focus,textarea:focus,select:focus{border-color:var(--gold-dim);}
+  textarea{resize:vertical;min-height:60px;line-height:1.5;}
+  .editor-placeholder{font-size:15px;font-style:italic;color:#444;line-height:1.6;padding:6px 0;}
+
+  /* TYPE SWITCHER */
+  .type-switcher{display:flex;gap:5px;}
+  .tsw-btn{flex:1;padding:7px 4px;border:1px solid #222;background:#0A0A0A;
+    font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.05em;text-transform:uppercase;
+    cursor:pointer;transition:all 0.12s;text-align:center;}
+  .tsw-btn:hover{filter:brightness(1.5);}
+  .tsw-btn.tsw-street{color:#7AC8A0;border-color:#334455;}
+  .tsw-btn.tsw-street{color:#5AAA5A;border-color:#336633;}
+  .tsw-btn.tsw-parking-lot{color:#6A7A8A;border-color:#2A2A3A;}
+  .tsw-btn.tsw-building{color:#B8A8D0;border-color:#443355;}
+  .tsw-btn.tsw-courtyard{color:#8A8AAA;border-color:#333348;}
+  .tsw-btn.tsw-unset{color:#555;border-color:#222;}
+  .tsw-btn.active{outline:2px solid var(--gold);outline-offset:-2px;}
+
+  /* BUILDING SECTION */
+  .bld-section{margin-top:8px;border-top:1px solid #1A1A1A;padding-top:8px;}
+  .bld-section-label{font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.08em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:6px;}
+  .bld-row{display:flex;gap:6px;align-items:center;margin-bottom:5px;}
+  .bld-current{font-family:'Cinzel',serif;font-size:13px;color:var(--parchment);flex:1;}
+  .bld-current.none{color:#444;font-style:italic;}
+  .bld-list{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;}
+  .bld-chip{padding:3px 8px;border:1px solid #2A2A2A;background:#0A0A0A;color:#888;
+    font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.04em;text-transform:uppercase;
+    cursor:pointer;transition:all 0.12s;}
+  .bld-chip:hover{border-color:var(--gold-dim);color:var(--gold);}
+  .bld-chip.active-bld{border-color:#4A9A4A;color:#7ACA7A;background:#050E05;}
+  .bld-new-row{display:flex;gap:5px;margin-top:4px;}
+  .bld-new-row input{flex:1;}
+
+  /* REGION SELECTOR */
+  .region-selector{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;}
+  .reg-chip{padding:3px 9px;border:1px solid #1A1A1A;background:#0A0A0A;
+    font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.04em;text-transform:uppercase;
+    cursor:pointer;transition:all 0.12s;color:#555;}
+  .reg-chip:hover{color:#999;border-color:#444;}
+  .reg-chip.rc-none{color:#444;border-color:#1A1A1A;}
+  .reg-chip.rc-ash-row{border-color:#7A1515;color:#CC5555;}
+  .reg-chip.rc-founders-vault{border-color:#7A5A15;color:#CC9933;}
+  .reg-chip.rc-aldric-zone{border-color:#153080;color:#5577CC;}
+  .reg-chip.rc-exchange-floor{border-color:#157050;color:#33AA77;}
+  .reg-chip.active-reg{outline:2px solid var(--gold);outline-offset:-2px;}
+
+  .btn-row{display:flex;gap:5px;margin-top:10px;}
+  .btn{flex:1;padding:6px;border:1px solid #2A2A2A;background:#111;color:#777;
+    font-family:'Cinzel',serif;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;
+    cursor:pointer;transition:all 0.12s;}
+  .btn:hover{color:var(--parchment-bright);border-color:#666;}
+  .btn.btn-save{border-color:var(--gold-dim);color:var(--gold);}
+  .btn.btn-save:hover{background:#1A1500;}
+
+  /* PAINT PANEL */
+  .paint-controls{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  .paint-label{font-family:'Cinzel',serif;font-size:12px;letter-spacing:0.08em;color:var(--gold-dim);text-transform:uppercase;margin-right:4px;}
+  .paint-btn{padding:5px 10px;border:1px solid #1A1A1A;background:#0A0A0A;color:#666;
+    font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.05em;text-transform:uppercase;
+    cursor:pointer;transition:all 0.12s;}
+  .paint-btn:hover{border-color:#444;color:#AAA;}
+  .paint-btn.active{border-color:var(--gold-dim);color:var(--gold);background:#111;}
+  .paint-hint{font-size:14px;font-style:italic;color:#444;line-height:1.6;}
+  .paint-mode-row{margin-top:10px;display:flex;gap:8px;align-items:center;}
+  .paint-indicator{font-family:'Cinzel',serif;font-size:12px;color:#333;font-style:italic;}
+  .paint-indicator.on{color:var(--gold-dim);}
+
+  /* REGION LAYER TOGGLE — fall back to block-type colours, never white */
+  body.regions-hidden .block.region-ash-row,
+  body.regions-hidden .block.region-founders-vault,
+  body.regions-hidden .block.region-aldric-zone,
+  body.regions-hidden .block.region-exchange-floor{
+    box-shadow:none!important;
+  }
+  body.regions-hidden .block.bt-building.region-ash-row,
+  body.regions-hidden .block.bt-building.region-founders-vault,
+  body.regions-hidden .block.bt-building.region-aldric-zone,
+  body.regions-hidden .block.bt-building.region-exchange-floor{
+    background:#0F0B08!important;border-color:#3A2A1A!important;
+  }
+  body.regions-hidden .block.bt-courtyard.region-ash-row,
+  body.regions-hidden .block.bt-courtyard.region-founders-vault,
+  body.regions-hidden .block.bt-courtyard.region-aldric-zone,
+  body.regions-hidden .block.bt-courtyard.region-exchange-floor{
+    background:#111115!important;border-color:#2A2A3A!important;
+  }
+  body.regions-hidden .block.bt-street.region-ash-row,
+  body.regions-hidden .block.bt-street.region-founders-vault,
+  body.regions-hidden .block.bt-street.region-aldric-zone,
+  body.regions-hidden .block.bt-street.region-exchange-floor{
+    background:#0C0C10!important;border-color:#1A1A22!important;border-top:2px solid #252530!important;border-bottom:2px solid #252530!important;
+  }
+  body.regions-hidden .block.bt-street.street-edge.region-ash-row,
+  body.regions-hidden .block.bt-street.street-edge.region-founders-vault,
+  body.regions-hidden .block.bt-street.street-edge.region-aldric-zone,
+  body.regions-hidden .block.bt-street.street-edge.region-exchange-floor{
+    background:#0A120A!important;border-color:#1A3020!important;
+  }
+  body.regions-hidden .block.bt-parking-lot.region-ash-row,
+  body.regions-hidden .block.bt-parking-lot.region-founders-vault,
+  body.regions-hidden .block.bt-parking-lot.region-aldric-zone,
+  body.regions-hidden .block.bt-parking-lot.region-exchange-floor{
+    background:#0A0A0E!important;border-color:#1A1A26!important;
+  }
+  body.regions-hidden .block-region-pip{display:none;}
+
+  /* REGION PANEL LAYOUT */
+  .regions-header{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+  .regions-toggle-btn{padding:5px 12px;border:1px solid #2A2A2A;background:#0A0A0A;
+    font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;
+    color:#666;cursor:pointer;transition:all 0.12s;}
+  .regions-toggle-btn:hover{color:#AAA;border-color:#444;}
+  .regions-toggle-btn.regions-on{border-color:var(--gold-dim);color:var(--gold);}
+  .regions-body{display:grid;grid-template-columns:1fr 220px;gap:14px;align-items:start;}
+  .regions-cards{display:flex;flex-direction:column;gap:5px;}
+  .region-card{border:1px solid #1E1E1E;border-left:3px solid #333;background:#0A0A0A;
+    padding:6px 9px;cursor:pointer;transition:background 0.12s;display:flex;align-items:center;gap:8px;}
+  .region-card:hover{background:#111;}
+  .region-card.active-region{outline:1px solid var(--gold);}
+  .region-card-text{flex:1;}
+  .region-name{font-family:'Cinzel',serif;font-size:13px;color:var(--parchment-bright);}
+  .region-theme{font-size:12px;font-style:italic;color:#555;}
+  .region-count{font-size:10px;color:#444;font-family:'Cinzel',serif;white-space:nowrap;}
+  .region-paint-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,0.1);}
+  .region-paint-dot.active-dot{outline:2px solid var(--gold);outline-offset:1px;}
+
+  /* RIGHT COLUMN: paint controls stacked */
+  .regions-paint-col{display:flex;flex-direction:column;gap:8px;}
+  .regions-paint-col .field-label{font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:3px;}
+  .add-region-row{display:flex;flex-direction:column;gap:5px;margin-top:8px;border-top:1px solid #1A1A1A;padding-top:8px;}
+  .add-region-row input{width:100%;}
+
+  /* EXPORT */
+  .export-area{width:100%;background:#060606;border:1px solid #1A1A1A;color:#5A8A5A;
+    font-family:monospace;font-size:12px;padding:7px;resize:vertical;min-height:80px;outline:none;}
+
+  /* LEGEND */
+  .legend-cols{display:flex;flex-wrap:wrap;gap:8px 28px;}
+  .legend-item{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--mist);}
+  .legend-swatch{width:12px;height:12px;border:1px solid;flex-shrink:0;}
+  .sw-unset{background:#0D0D0D;border-color:#181818;}
+  .sw-street{background:#12121A;border-color:#222233;}
+  .sw-exit{background:#0A160A;border-color:#1A3A1A;}
+  .sw-building{background:#0F0B08;border-color:#3A2A1A;}
+  .sw-courtyard{background:#111115;border-color:#2A2A3A;}
+  .sw-parking{background:#0A0A0E;border-color:#1A1A26;}
+  .sw-vault{background:#14100A;border-color:#7A5A15;}
+  .sw-aldric{background:#05080F;border-color:#153080;}
+  .sw-exchange{background:#05120A;border-color:#157050;}
+
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111;
+    border:1px solid var(--gold-dim);color:var(--gold);font-family:'Cinzel',serif;
+    font-size:13px;letter-spacing:0.1em;padding:7px 16px;opacity:0;
+    transition:opacity 0.25s;pointer-events:none;z-index:9998;white-space:nowrap;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="breadcrumb">Ephemera &rsaquo; Surface Layer &rsaquo; <span>C2 — The Loop Exchange</span></div>
+    <h1>THE LOOP EXCHANGE</h1>
+    <div class="subtitle">Interior Map &mdash; 10 &times; 10 &mdash; Financial / Power Anchor</div>
+    <div class="divider"></div>
+  </header>
+  <div class="map-section">
+    <div class="map-hint">Click any block to select &amp; edit &nbsp;·&nbsp; Enable Paint Mode in Paint tab for bulk fill</div>
+    <div class="map-frame">
+      <div class="edge-label edge-n">&#8593; Caldwell Street</div>
+      <div class="edge-label edge-w">&larr; 2nd Ave</div>
+      <div class="grid-wrap"><div class="interior-grid" id="interior-grid"></div></div>
+      <div class="edge-label edge-e">3rd Ave &rarr;</div>
+      <div class="edge-label edge-s">Crown Street &darr;</div>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="toolbar-tabs">
+      <button class="tool-tab active" data-panel="edit" onclick="switchTab('edit',this)">Edit Block <span class="tc" id="edit-coord-badge"></span></button>
+      <button class="tool-tab" data-panel="regions" onclick="switchTab('regions',this)">Regions <span class="tc" id="region-badge"></span></button>
+      <button class="tool-tab" data-panel="export" onclick="switchTab('export',this)">Export</button>
+      <button class="tool-tab" data-panel="legend" onclick="switchTab('legend',this)">Legend</button>
+    </div>
+
+    <div class="tool-panel open" id="panel-edit">
+      <div id="editor-body"><div class="editor-placeholder">Click any block on the map to edit it here.</div></div>
+    </div>
+
+    <div class="tool-panel" id="panel-regions">
+      <!-- HEADER ROW: paint mode toggle + region visibility toggle -->
+      <div class="regions-header">
+        <button class="paint-btn" id="paint-toggle" onclick="togglePaint()">Paint Mode: OFF</button>
+        <span class="paint-indicator" id="paint-indicator">Click a block to select and edit</span>
+        <div style="flex:1;"></div>
+        <button class="regions-toggle-btn regions-on" id="region-vis-toggle" onclick="toggleRegionVis()">Regions: ON</button>
+      </div>
+
+      <!-- TYPE PAINT ROW (shown when paint mode on) -->
+      <div id="paint-type-row" style="display:none;margin-bottom:10px;">
+        <div class="paint-label" style="margin-bottom:4px;">Paint Type:</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          <button class="paint-btn active" id="pb-street" onclick="setPaintType('street',this)">Street</button>
+          <button class="paint-btn" id="pb-parking-lot" onclick="setPaintType('parking-lot',this)">Parking</button>
+          <button class="paint-btn" id="pb-building" onclick="setPaintType('building',this)">Building</button>
+          <button class="paint-btn" id="pb-courtyard" onclick="setPaintType('courtyard',this)">Courtyard</button>
+          <button class="paint-btn" id="pb-unset" onclick="setPaintType('unset',this)">Clear</button>
+        </div>
+      </div>
+
+      <!-- BODY: region cards left, paint controls right -->
+      <div class="regions-body">
+        <div class="regions-cards" id="region-list"></div>
+        <div class="regions-paint-col">
+          <div>
+            <div class="field-label">Active Paint Region</div>
+            <div id="active-region-display" style="font-family:'Cinzel',serif;font-size:12px;color:#444;font-style:italic;margin-bottom:6px;">— none —</div>
+            <button class="paint-btn" onclick="setPaintRegion('')" style="width:100%;">Clear Region Paint</button>
+          </div>
+          <div class="add-region-row">
+            <div class="field-label">New Region</div>
+            <input type="text" id="new-region-name" placeholder="Name...">
+            <input type="text" id="new-region-theme" placeholder="Theme / subtitle...">
+            <button class="btn btn-save" onclick="addRegion()">Add Region</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tool-panel" id="panel-export">
+      <div style="font-size:14px;color:#444;margin-bottom:6px;font-style:italic;">Full interior map state.</div>
+      <textarea class="export-area" id="export-area" readonly></textarea>
+      <button class="btn btn-save" style="width:100%;margin-top:6px;" onclick="copyExport()">Copy to Clipboard</button>
+    </div>
+    <div class="tool-panel" id="panel-legend">
+      <div class="legend-cols">
+        <div class="legend-item"><div class="legend-swatch sw-unset"></div>Unset</div>
+        <div class="legend-item"><div class="legend-swatch sw-street"></div>Street</div>
+        <div class="legend-item"><div class="legend-swatch sw-exit"></div>Exit Street</div>
+        <div class="legend-item"><div class="legend-swatch sw-parking"></div>Parking Lot</div>
+        <div class="legend-item"><div class="legend-swatch sw-building"></div>Building</div>
+        <div class="legend-item"><div class="legend-swatch sw-courtyard"></div>Courtyard</div>
+        <div class="legend-item"><div class="legend-swatch sw-ash"></div>Ash Row</div>
+        <div class="legend-item"><div class="legend-swatch sw-vault"></div>Founder's Vault</div>
+        <div class="legend-item"><div class="legend-swatch sw-aldric"></div>Aldric Zone</div>
+        <div class="legend-item"><div class="legend-swatch sw-exchange"></div>Exchange Floor</div>
+        <div class="legend-item" style="color:#4A9A4A;font-size:13px;">Green outline = same building as selected block</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const EDGE_EXITS={north:'Caldwell Street',south:'Crown Street',west:'2nd Ave',east:'3rd Ave'};
+let regions=[
+  {id:'ash-row',name:'Ash Row',theme:'Purge scar / Prince\'s last stand',color:'#AA2020'},
+  {id:'founders-vault',name:'The Founder\'s Vault',theme:'Methuselah anchor / deep infrastructure',color:'#AA7A20'},
+  {id:'aldric-zone',name:'Aldric Redevelopment',theme:'New money front / Ventrue proxy',color:'#2050CC'},
+  {id:'exchange-floor',name:'Exchange Floor',theme:'Active financial / mortal-facing',color:'#20AA70'},
+];
+function b(type,region,name,icon,buildingId,desc){return{type,region:region||'',name:name||'',icon:icon||'',buildingId:buildingId||'',desc:desc||''};}
+let blocks={
+  '0,0':b('building','founders-vault','','','first-municipal','First Municipal Bank — Caldwell St & 2nd Ave corner. The building wraps the junction. No entrance on either street face here; this is mass, not access.'),
+  '0,1':b('building','founders-vault','','','first-municipal','First Municipal Bank — Caldwell Street face. The only entrance on this side was bricked over in 1931.'),
+  '0,2':b('building','founders-vault','','','first-municipal','Bank — Caldwell Street face'),
+  '0,3':b('building','founders-vault','','','first-municipal','Bank — Caldwell Street face'),
+  '0,4':b('building','founders-vault','','','first-municipal','Bank — Caldwell Street face. A gargoyle above the roofline faces north. It was not on the original blueprints.'),
+  '0,5':b('street','exchange-floor','Exchange Passage','','','Exchange Passage exits north to Caldwell Street'),
+  '0,6':b('building','exchange-floor','','','trading-hall','Trading Hall — Caldwell Street face. The main public entrance. Busy during market hours.'),
+  '0,7':b('building','exchange-floor','','','trading-hall','Trading Hall — Caldwell Street face'),
+  '0,8':b('building','exchange-floor','','','trading-hall','Trading Hall — Caldwell Street face. A secondary entrance used by floor traders. Unmarked.'),
+  '0,9':b('building','exchange-floor','','','trading-hall','Trading Hall — Caldwell St & 3rd Ave corner. The building turns the junction. Upper floors overhang the pavement by a foot — a detail the city never formally approved.'),
+
+  '1,0':b('building','founders-vault','','','first-municipal','Bank — 2nd Ave face. A small brass plaque here is the only exterior acknowledgment the bank exists on this side.'),
+  '1,1':b('building','founders-vault','First Municipal Bank','🏛','first-municipal','Founded 1887. The oldest continuously operating bank in Ephemera. The vault beneath predates the building. Three sub-basement levels not in any public record.'),
+  '1,2':b('building','founders-vault','','','first-municipal','Bank — main hall interior'),
+  '1,3':b('building','founders-vault','','','first-municipal','Bank — east wing'),
+  '1,4':b('building','founders-vault','','','first-municipal','Bank — east wing'),
+  '1,5':b('street','exchange-floor','Exchange Passage','','','North-south interior passage. Heavy foot traffic during mortal hours. Clear sightlines both directions.'),
+  '1,6':b('building','exchange-floor','Trading Hall','📊','trading-hall','The public face of The Loop Exchange. Mortal brokers, commodity trading, open outcry. Kindred use the gallery level after hours.'),
+  '1,7':b('building','exchange-floor','','','trading-hall','Trading Hall — floor'),
+  '1,8':b('building','exchange-floor','','','trading-hall','Trading Hall — east end'),
+  '1,9':b('building','exchange-floor','','','trading-hall','Trading Hall — 3rd Ave face. Loading bays and a service entrance. The freight elevator has not been inspected since 1998.'),
+
+  '2,0':b('building','founders-vault','','','first-municipal','Bank — 2nd Ave face, lower. A ventilation grille here runs warm year-round. The sub-basement air.'),
+  '2,1':b('building','founders-vault','','🔒','first-municipal','Bank — vault anteroom. Staff access only. The elevator to sub-basement 1 is here. Below that: no elevator.'),
+  '2,2':b('building','founders-vault','','','first-municipal','Bank — rear offices'),
+  '2,3':b('building','founders-vault','','','first-municipal','Bank — safe deposit room'),
+  '2,4':b('parking-lot','founders-vault','Bank Courtyard','','first-municipal','Enclosed rear courtyard of the First Municipal Bank. High stone walls on all sides. Used for secure deliveries. The drain in the centre is original to the 1887 build. Nobody goes here after dark voluntarily.'),
+  '2,5':b('street','exchange-floor','Exchange Passage','','','Exchange Passage mid-section. The lamppost here has been broken for eleven years. Repair orders issued. Nobody comes.'),
+  '2,6':b('building','exchange-floor','','','trading-hall','Trading Hall — back offices'),
+  '2,7':b('building','exchange-floor','','','trading-hall','Trading Hall — records room. Floor-to-ceiling ledgers dating to 1901.'),
+  '2,8':b('building','exchange-floor','','','trading-hall','Trading Hall — loading dock'),
+  '2,9':b('building','exchange-floor','','','trading-hall','Trading Hall — 3rd Ave face, lower. The dock doors on this side are chained shut from the inside.'),
+
+  '3,0':b('street','founders-vault','Charter Lane','','','Charter Lane exits west to 2nd Ave'),
+  '3,1':b('street','founders-vault','Charter Lane','','','Charter Lane. The oldest interior street. Cobblestones beneath the asphalt. Kindred who know the history avoid it after dark.'),
+  '3,2':b('street','founders-vault','Charter Lane','','','Charter Lane'),
+  '3,3':b('street','founders-vault','Charter Lane','','','Charter Lane — directly above the deepest sub-basement. The ground is slightly warm.'),
+  '3,4':b('street','founders-vault','Charter Lane','','','Charter Lane — Founder\'s anchor point. Compasses drift. Electronics fail intermittently.'),
+  '3,5':b('street','exchange-floor','Charter Lane & Exchange Passage','','','Intersection: Charter Lane x Exchange Passage. Center of The Loop Exchange. A bronze plaque marks the city\'s founding. The date is wrong by three years.'),
+  '3,6':b('street','exchange-floor','Charter Lane','','','Charter Lane east'),
+  '3,7':b('street','exchange-floor','Charter Lane','','','Charter Lane east'),
+  '3,8':b('street','exchange-floor','Charter Lane','','','Charter Lane east'),
+  '3,9':b('street','exchange-floor','Charter Lane','','','Charter Lane exits east to 3rd Ave'),
+
+  '4,0':b('building','ash-row','','','counting-house','Counting House — 2nd Ave face. The frosted glass windows have not been cleaned in years. The lights inside are always on.'),
+  '4,1':b('building','ash-row','The Counting House','🗂','counting-house','Ventrue administrative offices. Three floors of legal firms and holding companies. Every major Kindred financial interest in the city runs through a letterbox here.'),
+  '4,2':b('building','ash-row','','','chancery','Chancery — west annex. The connecting corridor to the Counting House is unmarked on any floor plan. The door at the end is always locked from the Chancery side.'),
+  '4,3':b('building','ash-row','','','chancery','Chancery — west wing. Older records stored here, pre-dating the building itself. The filing system has not been updated since 1978.'),
+  '4,4':b('building','ash-row','The Chancery','📜','chancery','Records office. Deeds, death certificates, identity documents. Three Kindred maintain human identities processed through this building.'),
+  '4,5':b('street','exchange-floor','Exchange Passage','','','Exchange Passage south of Charter Lane. Quieter. The shops here turn over every few years. The leases are always held by the same parent company.'),
+  '4,6':b('building','exchange-floor','Bourse Annex','💰','bourse-annex','Private dealing rooms. No public access. Transactions here do not appear in the exchange\'s official records.'),
+  '4,7':b('building','aldric-zone','','','aldric-hoarding','Former Bourse overflow space, now under Aldric acquisition. The partition wall between this and the Annex proper is new drywall over old brick.'),
+  '4,8':b('building','aldric-zone','','','aldric-hoarding','Aldric-acquired east wing. A door here leads to a stairwell that goes down one more floor than the building has. The Aldric paperwork does not mention the stairwell.'),
+  '4,9':b('building','aldric-zone','','','aldric-hoarding','Aldric-acquired — 3rd Ave face. A narrow service door, always locked. The lock is new. The door frame is not.'),
+
+  '5,0':b('building','ash-row','','','counting-house','Counting House — 2nd Ave face, lower level. A camera above the door has a dead indicator light.'),
+  '5,1':b('building','ash-row','','','counting-house','Counting House — basement. Pre-1920 records handled by a separate desk with staff who work different hours.'),
+  '5,2':b('building','ash-row','','','chancery','Chancery — south annex. Ground floor is bonded storage for original documents. The inventory has never been audited by anyone outside the building.'),
+  '5,3':b('courtyard','ash-row','','','chancery','Side alley within the Chancery footprint. A locked gate at the south end with no keyhole on the alley side. The Chancery claims it as private access. No signage confirms this.'),
+  '5,4':b('building','ash-row','','','chancery','Chancery — sub-office. The quiet processing of documents that should not exist.'),
+  '5,5':b('street','exchange-floor','Exchange Passage','','','Exchange Passage — the stretch south of center feels longer than the map suggests.'),
+  '5,6':b('building','exchange-floor','','','bourse-annex','Bourse Annex — secure storage. Safe deposit boxes registered to shell companies. Contents unknown.'),
+  '5,7':b('building','aldric-zone','','','aldric-hoarding','Aldric-acquired rear section. Shares a wall with Bourse Annex secure storage. The wall has been recently reinforced from the Aldric side.'),
+  '5,8':b('courtyard','aldric-zone','','','aldric-hoarding','Eastern service lane within the Aldric acquisition boundary. One security camera that appears to be recording. The camera is newer than anything else on this block.'),
+  '5,9':b('building','aldric-zone','','','aldric-hoarding','Aldric-acquired narrow building — 3rd Ave face. Formerly a single-occupancy notary office. Upper floors untenanted. Now folded into the Aldric hoarding footprint; the notary has not been seen since the acquisition was filed.'),
+
+  '6,0':b('parking-lot','ash-row','','','counting-house','Surface lot at the Counting House\'s southern perimeter. Cars here after dark are often unoccupied but still warm. The lot is technically Counting House property; enforcement is selective.'),
+  '6,1':b('parking-lot','ash-row','','','chancery','Chancery overflow lot — southern approach. Older buildings press close on all sides. Mortal foot traffic drops off sharply after sunset. The lot is rarely full during the day.'),
+  '6,2':b('building','ash-row','','','chancery','Chancery — southernmost block, north of Giles St. This face of the building shows no windows. The stonework is older than the rest of the Chancery by at least thirty years.'),
+  '6,3':b('building','ash-row','','','chancery','Chancery — rear exit. A door that is always unlocked. Nobody uses it in either direction.'),
+  '6,4':b('building','ash-row','','','chancery','Chancery — back wall'),
+  '6,5':b('street','exchange-floor','Exchange Passage','','','Exchange Passage — smells faintly of old ash even in winter. No fire in recorded history explains it.'),
+  '6,6':b('parking-lot','exchange-floor','','','bourse-annex','Open lot held under Bourse Annex title — once a building, foundation still visible under the gravel. The acquisition paperwork is filed. A padlocked site office container sits in the centre. Tyre tracks. No workers.'),
+  '6,7':b('building','aldric-zone','','','aldric-hoarding','Aldric construction hoarding — north of Giles St. Scaffolding and plywood. Behind it: stripped walls, the ghost of something older.'),
+  '6,8':b('building','aldric-zone','','','aldric-hoarding','Aldric construction zone — east. North of Giles St.'),
+  '6,9':b('building','aldric-zone','','','aldric-hoarding','Aldric hoarding — 3rd Ave face. The plywood here has been freshly replaced. Someone is maintaining the appearance of active work.'),
+
+  '7,0':b('street','ash-row','Giles St','','','Giles St exits west to 2nd Ave'),
+  '7,1':b('street','ash-row','Giles St','','','Giles St. Where the Prince made his last stand. The pavement replacement is subtly wrong — the joints run in the wrong direction.'),
+  '7,2':b('street','ash-row','Giles St','','','Giles St — the spot. A scorch mark is visible when it rains. Mortals who linger here report unease and leave quickly.'),
+  '7,3':b('street','ash-row','Giles St','','','Giles St'),
+  '7,4':b('street','ash-row','Giles St','','','Giles St west. The drain here has been blocked since the purge night.'),
+  '7,5':b('street','aldric-zone','Giles St & Exchange Passage','','','Intersection: Giles St x Exchange Passage. A war memorial plaque lists names. Some names are wrong.'),
+  '7,6':b('street','aldric-zone','Giles St','','','Giles St east — outside Giles St region. Cleaner, but the feeling does not entirely lift.'),
+  '7,7':b('street','aldric-zone','Giles St','','','Giles St east'),
+  '7,8':b('street','aldric-zone','Giles St','','','Giles St east'),
+  '7,9':b('street','aldric-zone','Giles St','','','Giles St exits east to 3rd Ave'),
+
+  '8,0':b('building','ash-row','','','pyre-building','The Pyre — 2nd Ave face. The exterior wall has been shored up with steel bracing that was never removed. Blast scarring runs from ground level to the third floor. The windows are boarded. The boards have been here long enough to rot at the edges.'),
+  '8,1':b('building','ash-row','The Pyre','🔥','pyre-building','A four-storey shell. The roof collapsed inward during the fire; the upper floors are open to the sky. The ground floor was partially rebuilt — cheap partitioning, a dropped ceiling, fluorescent lights. Currently occupied by a bail bondsman who does not advertise and does not ask questions. The walls behind the partitions are still charred.'),
+  '8,2':b('building','ash-row','','','pyre-building','The Pyre — interior east. The floor here is newer concrete poured over blast debris that was never cleared. It is uneven in places. A steel door has been added to a frame that shows evidence of having been blown outward. The door opens inward. It was not installed by the original builders.'),
+  '8,3':b('parking-lot','ash-row','','','pyre-building','Rubble lot — cleared at some point but not filled. Fragments of the original load-bearing walls are still embedded in the ground. Graffiti on the remaining rear wall in layers; the oldest layer is not paint. The lot is fenced with chain-link that has been cut and rewired multiple times. Nobody enforces access.'),
+  '8,4':b('parking-lot','ash-row','','','pyre-building','Surface lot — east of The Pyre. The tarmac here covers what was once an interior courtyard; the drain in the centre still connects to the building\'s original drainage. Twelve bays. Pay-by-phone only, operated by a company with no local registry entry. The attendant booth is empty during the day. At night the light inside it is on.'),
+  '8,5':b('street','aldric-zone','Exchange Passage','','','Exchange Passage south — broadens slightly before meeting Crown Street.'),
+  '8,6':b('parking-lot','aldric-zone','','','aldric-house','Aldric House overflow lot — ground broken then abandoned. The permit dispute is with a city office that no longer exists. Tyre tracks and staked survey markers still visible.'),
+  '8,7':b('building','aldric-zone','Aldric House','🏢','aldric-house','Six floors of glass and steel that look wrong against the Victorian surroundings. Ground floor: private equity. Upper floors officially untenanted. Lights on at 3am.'),
+  '8,8':b('building','aldric-zone','','','aldric-house','Aldric House — east face'),
+  '8,9':b('building','aldric-zone','','','aldric-house','Aldric House — 3rd Ave face. Floor-to-ceiling glass on the ground floor. The interior is always lit but always empty-looking. A reception desk with nobody behind it.'),
+
+  '9,0':b('building','ash-row','','','pyre-building','The Pyre — Crown St corner, 2nd Ave. The corner took the worst of it. The stonework at street level is fused in places — heat damage that no ordinary fire produces. The city records list the cause as undetermined.'),
+  '9,1':b('building','ash-row','','','pyre-building','The Pyre — Crown Street face. Three floors of blown-out windows, framed in metal that warped outward. The glass was never replaced. Wire mesh keeps pigeons out. Keeps other things in.'),
+  '9,2':b('building','ash-row','','','pyre-building','The Pyre — Crown Street face, east end. A secondary exit here was sealed with poured concrete after the incident. The concrete is a different colour from everything around it and does not match any mortal contractor\'s work order on file.'),
+  '9,3':b('building','ash-row','','','pyre-building','The Pyre — Crown Street extension. This wing predates the main structure. The damage here is different — older, and from something other than the fire. The facade was patched in the 1970s with the wrong stone. Someone wanted it to look repaired without looking too closely at what was repaired.'),
+  '9,4':b('building','ash-row','','','pyre-building','The Pyre — Crown Street, easternmost reach. A letting agent\'s board has been bolted to the wall for three years. The contact number is a Pyre internal extension. No viewings have been arranged. No viewings will be arranged.'),
+  '9,5':b('street','aldric-zone','Exchange Passage','','','Exchange Passage exits south to Crown Street'),
+  '9,6':b('building','aldric-zone','','','aldric-house','Aldric House — Crown Street, west anchor block. Ground floor retail shuttered since the Aldric acquisition. The upper floors show light at irregular hours consistent with the rest of Aldric House.'),
+  '9,7':b('building','aldric-zone','','','aldric-house','Aldric House — Crown Street face, west end. The planning application for the building is posted in the window. The contact number goes to voicemail.'),
+  '9,8':b('building','aldric-zone','','','aldric-house','Aldric House — Crown Street face'),
+  '9,9':b('building','aldric-zone','','','aldric-house','Aldric House — Crown Street corner, 3rd Ave. A brass plate by the door reads: PRIVATE EQUITY SOLUTIONS LTD. Est. 2019. The building is six years old. The plate looks forty.'),
+};
+
+/* ─── RETIRED TILE BANK ────────────────────────────────────────────────────
+   Tiles removed from active map. Preserved for reuse in future districts.
+
+   corner-nw (was 0,0):
+     "Northwest corner block — Caldwell St & 2nd Ave junction face."
+     Generic urban corner. No lore. Good neutral filler for any NW grid corner.
+
+   corner-ne (was 0,9):
+     "Northeast corner block — Caldwell St & 3rd Ave junction face."
+     Generic urban corner. No lore. Good neutral filler for any NE grid corner.
+
+   south-facade west (was 9,3):
+     buildingId: south-facade
+     "Crown Street facing facade — between Pyre Building and Exchange Passage.
+      A shuttered shopfront, lease expired. The name on the sign has been painted over twice."
+     Liminal Crown St shopfront. Works anywhere on a southern edge near a passage exit.
+
+   south-facade mid (was 9,4):
+     buildingId: south-facade
+     "Crown Street facing facade — west of Exchange Passage. A letting agent's board
+      has been here for three years. No viewings have been arranged."
+     Stagnant commercial real estate flavour. Good for any dead zone on a city edge.
+
+   south-facade east (was 9,6):
+     buildingId: south-facade
+     "Crown Street facing facade — east of Exchange Passage. Ground floor retail,
+      shuttered. The upper floors show light at irregular hours."
+     Inhabited-but-abandoned vibe. Reusable anywhere a building needs quiet menace.
+
+   lane-office (was 5,9):
+     buildingId: lane-office
+     "A narrow three-storey office building squeezed between larger structures.
+      Registered to a holding company. Single notary firm on ground floor.
+      Upper floors: no signage, no listed tenants."
+     Generic squeeze building. Highly reusable — works in any dense urban interior.
+
+   counting-house floor 2 (was 4,2, pre-chancery reassignment):
+     "Counting House — floor 2"
+     Bare floor label. Generic administrative building filler, any mid-block cell.
+
+   counting-house floor 3 (was 4,3, pre-chancery reassignment):
+     "Counting House — floor 3. The corner office has had the same occupant since 1962.
+      The name on the door changes. The handwriting on the memos does not."
+     Strong Kindred persistence hook. Drop into any long-occupied office building.
+
+   counting-house annex (was 5,2, pre-chancery reassignment):
+     "Counting House — annex"
+     Generic annex label. Neutral filler.
+
+   pyre-building north face (was 6,2, pre-chancery reassignment):
+     "The Pyre Building — north face. Fire damage partially concealed. The newer brick does not match."
+     Fire-scar flavour for any building face near a violent history site.
+     NOTE: 6,2 is now Chancery southernmost block — this desc was displaced by the boundary shift.
+
+   bourse-annex private rooms (was 4,7, pre-aldric reassignment):
+     "Bourse Annex — private rooms"
+     Generic dealing-room label. Any financial district interior.
+
+   bourse-annex rear (was 5,7, pre-aldric reassignment):
+     "Bourse Annex — rear"
+     Bare rear label. Neutral filler for any back-of-building cell.
+──────────────────────────────────────────────────────────────────────────── */
+
+let paintMode=false,paintType='street',paintRegion=null,paintTarget='type',isPainting=false,selectedKey=null;
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function coordLabel(key){const[r,c]=key.split(',').map(Number);return String.fromCharCode(65+c)+(r+1);}
+function getExitDirs(r,c){
+  const dirs=[];
+  if(r===0)dirs.push('north');
+  if(r===9)dirs.push('south');
+  if(c===0)dirs.push('west');
+  if(c===9)dirs.push('east');
+  return dirs;
+}
+function getExitDir(r,c){const d=getExitDirs(r,c);return d.length?d[0]:null;}
+const ARROW_CHAR={north:'▲',south:'▼',west:'◀',east:'▶'};
+function exitArrowsHTML(r,c){
+  const dirs=getExitDirs(r,c);
+  if(!dirs.length)return'';
+  const isCorner=dirs.length>1;
+  // For corners: north/south offset left of centre, east/west pinned to bottom
+  const styles={
+    north: isCorner ? 'top:1px;left:calc(50% - 6px);'         : 'top:1px;left:50%;transform:translateX(-50%);',
+    south: isCorner ? 'bottom:1px;left:calc(50% - 6px);'      : 'bottom:1px;left:50%;transform:translateX(-50%);',
+    west:  isCorner ? 'left:1px;bottom:5px;'                   : 'left:1px;top:calc(50% - 5px);',
+    east:  isCorner ? 'right:1px;bottom:5px;'                  : 'right:1px;top:calc(50% - 5px);',
+  };
+  return dirs.map(dir=>
+    `<div class="exit-arrow exit-${dir}" style="${styles[dir]}">${ARROW_CHAR[dir]}</div>`
+  ).join('');
+}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+function getRegion(id){return regions.find(r=>r.id===id)||null;}
+function getBuildingIds(){const ids=new Set();Object.values(blocks).forEach(bk=>{if(bk.buildingId)ids.add(bk.buildingId);});return[...ids].sort();}
+
+function renderGrid(){
+  const grid=document.getElementById('interior-grid');
+  grid.innerHTML='';
+  const selBld=selectedKey?blocks[selectedKey]?.buildingId:'';
+  for(let r=0;r<10;r++){
+    for(let c=0;c<10;c++){
+      const key=`${r},${c}`;
+      const bk=blocks[key];
+      const exitDir=getExitDir(r,c);
+      const exitDirs=getExitDirs(r,c);
+      const isNS = bk.type==='street' && bk.name && bk.name.toLowerCase().includes('exchange passage') && !bk.name.toLowerCase().includes('&');
+      const isIntersection = bk.type==='street' && bk.name && bk.name.includes('&');
+      const isEdge = bk.type==='street' && exitDirs.length>0;
+      let cls=`block bt-${bk.type}`;
+      if(isNS) cls+=' street-ns';
+      if(isIntersection) cls+=' street-ns street-intersection';
+      if(isEdge) cls+=' street-edge';
+      if(bk.region)cls+=` region-${bk.region}`;
+      if(key===selectedKey)cls+=' selected';
+      else if(selBld&&bk.buildingId===selBld)cls+=' bld-highlight';
+      const div=document.createElement('div');
+      div.className=cls;div.dataset.key=key;
+      const coord=coordLabel(key);
+      const regName=bk.region?getRegion(bk.region)?.name.split(' ')[0]||'':'';
+      div.innerHTML=
+        `<div class="block-coord">${coord}</div>`+
+        exitArrowsHTML(r,c)+
+        (bk.icon?`<div class="block-icon">${bk.icon}</div>`:'')+
+        (bk.name?`<div class="block-name">${esc(bk.name)}</div>`:'')+
+        (regName?`<div class="block-region-pip">${esc(regName)}</div>`:'')+
+        '<div class="block-type-dot"></div>';
+      div.addEventListener('mousedown',(ev)=>{if(paintMode){isPainting=true;applyPaint(key);ev.preventDefault();}else{selectBlock(key);}});
+      div.addEventListener('mouseenter',()=>{if(paintMode&&isPainting)applyPaint(key);});
+      div.addEventListener('click',()=>{if(!paintMode)selectBlock(key);});
+      grid.appendChild(div);
+    }
+  }
+  document.getElementById('edit-coord-badge').textContent=selectedKey?coordLabel(selectedKey):'';
+}
+document.addEventListener('mouseup',()=>{isPainting=false;});
+
+function patchBlock(key){
+  const el=document.querySelector(`[data-key="${key}"]`);if(!el)return;
+  const bk=blocks[key];
+  const selBld=selectedKey?blocks[selectedKey]?.buildingId:'';
+  const [pr,pc]=key.split(',').map(Number);
+  const exitDirs=getExitDirs(pr,pc);
+  const isNS=bk.type==='street'&&bk.name&&bk.name.toLowerCase().includes('exchange passage')&&!bk.name.includes('&');
+  const isIntersection=bk.type==='street'&&bk.name&&bk.name.includes('&');
+  const isEdge=bk.type==='street'&&exitDirs.length>0;
+  let cls=`block bt-${bk.type}`;
+  if(isNS)cls+=' street-ns';
+  if(isIntersection)cls+=' street-ns street-intersection';
+  if(isEdge)cls+=' street-edge';
+  if(bk.region)cls+=` region-${bk.region}`;
+  if(key===selectedKey)cls+=' selected';
+  else if(selBld&&bk.buildingId===selBld)cls+=' bld-highlight';
+  el.className=cls;
+  const coord=coordLabel(key);
+  const regName=bk.region?getRegion(bk.region)?.name.split(' ')[0]||'':'';
+  el.innerHTML=
+    `<div class="block-coord">${coord}</div>`+
+    exitArrowsHTML(pr,pc)+
+    (bk.icon?`<div class="block-icon">${bk.icon}</div>`:'')+
+    (bk.name?`<div class="block-name">${esc(bk.name)}</div>`:'')+
+    (regName?`<div class="block-region-pip">${esc(regName)}</div>`:'')+
+    '<div class="block-type-dot"></div>';
+}
+
+function applyPaint(key){
+  if(paintTarget==='region'&&paintRegion!==null){
+    blocks[key].region=paintRegion;
+  } else if(paintTarget==='type'){
+    blocks[key].type=paintType;
+  }
+  patchBlock(key);
+}
+function selectBlock(key){selectedKey=key;renderGrid();openBlockEditor(key);openEditTab();}
+
+function openBlockEditor(key){
+  const bk=blocks[key];
+  const coord=coordLabel(key);
+  const exitDir=getExitDir(...key.split(',').map(Number));
+  const types=['street','parking-lot','building','courtyard','unset'];
+  const typeLabels={street:'Street','parking-lot':'Parking',building:'Building',courtyard:'Courtyard',unset:'Unset'};
+  const typeSw=types.map(t=>`<button class="tsw-btn tsw-${t}${bk.type===t?' active':''}" onclick="setBlockType('${key}','${t}')">${typeLabels[t]}</button>`).join('');
+  const regChips=[{id:'',name:'None'},...regions].map(reg=>
+    `<span class="reg-chip${reg.id?' rc-'+reg.id:' rc-none'}${bk.region===reg.id?' active-reg':''}" onclick="setBlockRegion('${key}','${reg.id}')">${esc(reg.name||'None')}</span>`
+  ).join('');
+  const bldIds=getBuildingIds();
+  const bldChips=bldIds.map(bid=>
+    `<span class="bld-chip${bk.buildingId===bid?' active-bld':''}" onclick="setBlockBuilding('${key}','${bid}')">${esc(bid)}</span>`
+  ).join('');
+  const exitNote=exitDir?`<div style="font-size:13px;color:#5AAA5A;margin-bottom:6px;font-style:italic;">Edge block &mdash; exits to <strong>${EDGE_EXITS[exitDir]}</strong></div>`:'';
+  document.getElementById('editor-body').innerHTML=`
+    <div class="edit-grid">
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:15px;color:var(--gold);margin-bottom:8px;letter-spacing:0.1em;">Block ${coord}</div>
+        ${exitNote}
+        <div class="field-group"><label class="field-label">Block Type</label><div class="type-switcher">${typeSw}</div></div>
+        <div class="field-group"><label class="field-label">Region</label><div class="region-selector">${regChips}</div></div>
+        <div class="bld-section">
+          <div class="bld-section-label">Building Association</div>
+          <div class="bld-row">
+            <span class="bld-current${!bk.buildingId?' none':''}">${bk.buildingId||'— unassigned —'}</span>
+            ${bk.buildingId?`<button class="btn" style="flex:none;padding:3px 8px;font-size:11px;" onclick="setBlockBuilding('${key}','')">Remove</button>`:''}
+          </div>
+          ${bldChips?`<div class="bld-list">${bldChips}</div>`:'<div style="font-size:13px;color:#333;font-style:italic;margin-bottom:4px;">No buildings defined yet.</div>'}
+          <div class="bld-new-row">
+            <input type="text" id="ed-new-bld" placeholder="New building ID (e.g. town-hall)">
+            <button class="btn btn-save" style="flex:none;padding:4px 10px;font-size:11px;" onclick="assignNewBuilding('${key}')">Assign</button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-save" onclick="saveBlock('${key}')">Save</button>
+          <button class="btn" onclick="clearBlock('${key}')">Clear</button>
+        </div>
+      </div>
+      <div>
+        <div class="field-group"><label class="field-label">Name</label><input type="text" id="ed-name" value="${esc(bk.name)}" placeholder="Block or location name..."></div>
+        <div class="field-group"><label class="field-label">Icon</label><input type="text" id="ed-icon" value="${esc(bk.icon)}" placeholder="🏦 🚪 ..." style="width:90px;"></div>
+        <div class="field-group"><label class="field-label">Description / Notes</label><textarea id="ed-desc" placeholder="Encounter hooks, lore, mechanical notes...">${esc(bk.desc)}</textarea></div>
+      </div>
+    </div>`;
+  document.getElementById('edit-coord-badge').textContent=coord;
+}
+
+function setBlockType(key,type){
+  blocks[key].type=type;
+  renderGrid();
+  document.querySelectorAll('.tsw-btn').forEach(b=>b.classList.toggle('active',b.classList.contains('tsw-'+type)));
+}
+function setBlockRegion(key,region){
+  blocks[key].region=region;
+  renderGrid();
+  document.querySelectorAll('.reg-chip').forEach(c=>{
+    c.classList.toggle('active-reg',(region===''&&c.classList.contains('rc-none'))||(region&&c.classList.contains('rc-'+region)));
+  });
+}
+function setBlockBuilding(key,bid){blocks[key].buildingId=bid;renderGrid();openBlockEditor(key);}
+function assignNewBuilding(key){
+  const val=(document.getElementById('ed-new-bld').value||'').trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  if(val)setBlockBuilding(key,val);
+}
+function saveBlock(key){
+  blocks[key].name=(document.getElementById('ed-name').value||'').trim();
+  blocks[key].desc=(document.getElementById('ed-desc').value||'').trim();
+  blocks[key].icon=(document.getElementById('ed-icon').value||'').trim();
+  renderGrid();showToast('Saved '+coordLabel(key));
+}
+function clearBlock(key){
+  const exitDir=getExitDir(...key.split(',').map(Number));
+  blocks[key]={type:exitDir?'street':'unset',region:'',name:'',icon:'',buildingId:'',desc:''};
+  openBlockEditor(key);renderGrid();showToast('Cleared '+coordLabel(key));
+}
+
+function setPaintType(type,btn){
+  paintType=type;
+  paintTarget='type';
+  document.querySelectorAll('.paint-btn[id^="pb-"]').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+}
+function setPaintRegion(region){
+  paintRegion=region===undefined?null:region;
+  paintTarget='region';
+  // update active dots on region cards
+  document.querySelectorAll('.region-paint-dot').forEach(d=>d.classList.remove('active-dot'));
+  if(region){
+    const dot=document.querySelector(`.region-paint-dot[data-rid="${region}"]`);
+    if(dot)dot.classList.add('active-dot');
+  }
+  // update active-region display
+  const disp=document.getElementById('active-region-display');
+  if(disp){
+    const reg=regions.find(r=>r.id===region);
+    disp.textContent=reg?reg.name:'— none —';
+    disp.style.color=reg?reg.color:'#444';
+  }
+  // update card highlight
+  document.querySelectorAll('.region-card').forEach(c=>c.classList.remove('active-region'));
+  if(region){
+    const card=document.querySelector(`.region-card[data-rid="${region}"]`);
+    if(card)card.classList.add('active-region');
+  }
+}
+function toggleRegionVis(){
+  const btn=document.getElementById('region-vis-toggle');
+  const hidden=document.body.classList.toggle('regions-hidden');
+  btn.textContent=hidden?'Regions: OFF':'Regions: ON';
+  btn.classList.toggle('regions-on',!hidden);
+}
+function togglePaint(){
+  paintMode=!paintMode;
+  const btn=document.getElementById('paint-toggle');
+  const ind=document.getElementById('paint-indicator');
+  const typeRow=document.getElementById('paint-type-row');
+  btn.textContent=`Paint Mode: ${paintMode?'ON':'OFF'}`;
+  btn.classList.toggle('active',paintMode);
+  ind.textContent=paintMode
+    ?'Click a type button to paint types — click a region card to paint regions only'
+    :'Click a block to select and edit';
+  if(typeRow)typeRow.style.display=paintMode?'block':'none';
+}
+
+function renderRegions(){
+  const list=document.getElementById('region-list');
+  if(!list)return;
+  list.innerHTML='';
+  regions.forEach(reg=>{
+    const count=Object.values(blocks).filter(bk=>bk.region===reg.id).length;
+    const card=document.createElement('div');
+    card.className='region-card';
+    card.dataset.rid=reg.id;
+    card.style.borderLeftColor=reg.color;
+    card.innerHTML=`
+      <div class="region-paint-dot${paintRegion===reg.id?' active-dot':''}" data-rid="${reg.id}" style="background:${reg.color};"></div>
+      <div class="region-card-text">
+        <div class="region-name">${esc(reg.name)}</div>
+        <div class="region-theme">${esc(reg.theme)}</div>
+      </div>
+      <div class="region-count">${count}b</div>`;
+    card.addEventListener('click',()=>setPaintRegion(reg.id));
+    list.appendChild(card);
+  });
+  document.getElementById('region-badge').textContent=regions.length;
+  // sync active display
+  setPaintRegion(paintRegion||'');
+}
+function addRegion(){
+  const name=(document.getElementById('new-region-name').value||'').trim();
+  const theme=(document.getElementById('new-region-theme').value||'').trim();
+  if(!name)return;
+  const id=name.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  if(regions.find(r=>r.id===id)){showToast('Already exists');return;}
+  const palette=['#AA2060','#20AA60','#6020AA','#AA6020','#2060AA','#60AA20'];
+  regions.push({id,name,theme,color:palette[regions.length%palette.length]});
+  document.getElementById('new-region-name').value='';
+  document.getElementById('new-region-theme').value='';
+  renderRegions();showToast('Added '+name);
+}
+
+function renderExport(){
+  const out={district:'C2',name:'The Loop Exchange',version:'1.1',edges:EDGE_EXITS,regions,blocks:{}};
+  Object.keys(blocks).sort().forEach(k=>{
+    const bk=blocks[k];
+    if(bk.type!=='unset'||bk.name||bk.region||bk.desc){
+      out.blocks[k]={type:bk.type};
+      if(bk.region)out.blocks[k].region=bk.region;
+      if(bk.name)out.blocks[k].name=bk.name;
+      if(bk.icon)out.blocks[k].icon=bk.icon;
+      if(bk.desc)out.blocks[k].desc=bk.desc;
+      if(bk.buildingId)out.blocks[k].buildingId=bk.buildingId;
+    }
+  });
+  document.getElementById('export-area').value=JSON.stringify(out,null,2);
+}
+function copyExport(){renderExport();const ta=document.getElementById('export-area');ta.select();document.execCommand('copy');showToast('Copied');}
+
+function switchTab(id,btn){
+  document.querySelectorAll('.tool-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open'));
+  if(btn)btn.classList.add('active');
+  else document.querySelector(`[data-panel="${id}"]`).classList.add('active');
+  document.getElementById('panel-'+id).classList.add('open');
+  if(id==='regions')renderRegions();
+  if(id==='export')renderExport();
+}
+function openEditTab(){
+  document.querySelectorAll('.tool-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open'));
+  document.querySelector('[data-panel="edit"]').classList.add('active');
+  document.getElementById('panel-edit').classList.add('open');
+}
+
+renderGrid();renderRegions();
+</script>
+</body>
+</html>
