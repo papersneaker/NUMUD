@@ -5,6 +5,7 @@ import { authMiddleware }            from './network/middleware/auth.js';
 import { registerConnectionHandler } from './network/handlers/connection.js';
 import { CommandRegistry }           from './game/commands/registry.js';
 import { getRedis }                  from './db/redis/client.js';
+import { registerShutdownHandlers }  from './shutdown.js';
 
 const PORT = Number(process.env['PORT'] ?? 3001);
 
@@ -44,6 +45,7 @@ async function start(): Promise<void> {
 
   httpServer.listen(PORT, () => {
     console.log(`[Ephemera] Server listening on :${PORT}`);
+    registerShutdownHandlers(httpServer, io);
   });
 }
 
