@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ephemera</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background: #0a0a0a; overflow: hidden; }
+
+      .terminal { display: flex; flex-direction: column; height: 100%; }
+      .terminal__output {
+        flex: 1; overflow-y: auto; padding: 0.75rem 1rem;
+        font-size: 0.9rem; line-height: 1.6;
+        scrollbar-width: thin; scrollbar-color: #333 #0a0a0a;
+      }
+      .terminal__input {
+        display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.5rem 1rem; border-top: 1px solid #1a1a1a;
+      }
+      .terminal__input input {
+        flex: 1; background: transparent; border: none; outline: none;
+        color: #c8a96e; font-family: monospace; font-size: 0.9rem;
+        caret-color: #c8a96e;
+      }
+      .prompt { color: #555; }
+      .line { padding: 1px 0; }
+      .line--raw { color: #c8a96e; }
+      .line--room { color: #a0c4a0; }
+      .msg--info    { color: #7ec8e3; }
+      .msg--warning { color: #f0c040; }
+      .msg--error   { color: #c0392b; }
+      .msg--success { color: #a0c4a0; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
