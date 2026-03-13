@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from 'http';
 import type { Server as IOServer } from 'socket.io';
-import { closeRedis } from './db/redis/client.js';
+import { closeRedis }  from './db/redis/client.js';
+import { stopFlushJob, flushNow } from './db/redis/flushJob.js';
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -16,8 +17,9 @@ export function registerShutdownHandlers(
     io.close();
     console.log('[Ephemera] Socket.io closed');
 
-    // TODO: flush dirty:players Set to PostgreSQL before exit
-    // await flushDirtyPlayers();
+    // Stop flush interval then do one final flush
+    stopFlushJob();
+    await flushNow();
 
     // Close Redis
     await closeRedis();

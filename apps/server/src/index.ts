@@ -9,7 +9,11 @@ import { registerShutdownHandlers }  from './shutdown.js';
 import { CommandRegistry }           from './game/commands/registry.js';
 import { makeLookHandler }           from './game/commands/handlers/look.js';
 import { makeMoveHandler }           from './game/commands/handlers/move.js';
+import { makeSayHandler }            from './game/commands/handlers/say.js';
+import { makeWhoHandler }            from './game/commands/handlers/who.js';
+import { makeQuitHandler }           from './game/commands/handlers/quit.js';
 import { getRedis }                  from './db/redis/client.js';
+import { startFlushJob }             from './db/redis/flushJob.js';
 import { db }                        from './db/postgres/client.js';
 import { characters }                from './db/postgres/schema/index.js';
 import { handleLogin }               from './network/routes/auth.js';
@@ -21,9 +25,19 @@ const PORT = Number(process.env['PORT'] ?? 3001);
 
 // ------------------------------------------------------------------ //
 // Socket registry — characterId → socket
-// Needed by move handler to update socket.data.roomId + switch rooms
 // ------------------------------------------------------------------ //
 const socketRegistry = new Map<string, Sock>();
+
+function getSocket(characterId: string): Sock | undefined {
+  return socketRegistry.get(characterId);
+}
+
+function getConnected(): Array<{ characterId: string; roomId: string }> {
+  return [...socketRegistry.entries()].map(([characterId, sock]) => ({
+    characterId,
+    roomId: sock.data.roomId,
+  }));
+}
 
 // ------------------------------------------------------------------ //
 // HTTP server
@@ -72,7 +86,7 @@ io.use(async (socket, next) => {
   }
 });
 
-// Track sockets by characterId for move handler
+// Socket registry maintenance
 io.on('connection', (socket: Sock) => {
   socketRegistry.set(socket.data.characterId, socket);
   socket.on('disconnect', () => socketRegistry.delete(socket.data.characterId));
@@ -81,7 +95,10 @@ io.on('connection', (socket: Sock) => {
 // Command registry
 const registry = new CommandRegistry();
 registry.register('look', makeLookHandler(io));
-registry.register('move', makeMoveHandler(io, (charId) => socketRegistry.get(charId)));
+registry.register('move', makeMoveHandler(io, getSocket));
+registry.register('say',  makeSayHandler(io));
+registry.register('who',  makeWhoHandler(io, getConnected));
+registry.register('quit', makeQuitHandler(io, getSocket));
 
 // Connection lifecycle
 registerConnectionHandler(io, registry);
@@ -93,6 +110,8 @@ async function start(): Promise<void> {
   const redis = getRedis();
   await redis.connect();
   console.log('[Redis] Connected');
+
+  startFlushJob();
 
   httpServer.listen(PORT, () => {
     console.log(`[Ephemera] Server listening on :${PORT}`);

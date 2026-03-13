@@ -75,7 +75,7 @@ const buttonStyle: React.CSSProperties = {
 // ------------------------------------------------------------------ //
 // Game screen
 // ------------------------------------------------------------------ //
-function GameScreen({ token }: { token: string }) {
+function GameScreen({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [lines,  setLines]  = useState<OutputLine[]>([]);
   const [socket, setSocket] = useState<EphemeraSocket | null>(null);
 
@@ -98,6 +98,13 @@ function GameScreen({ token }: { token: string }) {
 
     sock.on('disconnect', () => {
       addLine({ kind: 'raw', text: '-- Disconnected --' });
+    });
+
+    sock.on('system:announce', (payload) => {
+      if (payload.message === 'LOGOUT') {
+        sock.disconnect();
+        onLogout();
+      }
     });
 
     sock.on('room:describe', (payload) => {
@@ -154,6 +161,6 @@ function GameScreen({ token }: { token: string }) {
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
   return token
-    ? <GameScreen token={token} />
+    ? <GameScreen token={token} onLogout={() => setToken(null)} />
     : <LoginScreen onLogin={setToken} />;
 }

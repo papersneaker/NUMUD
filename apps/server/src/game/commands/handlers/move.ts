@@ -1,13 +1,10 @@
 import type { Server, Socket } from 'socket.io';
-import { eq }                  from 'drizzle-orm';
 import type {
   ClientToServerEvents, ServerToClientEvents, SocketData, RoomId, CharacterId
 } from '@ephemera/shared';
 import { asRoomId, asCharacterId } from '@ephemera/shared';
 import { getRoomWithOccupants, getExitTarget } from '../../../db/postgres/repositories/room.repository.js';
 import { atomicRoomTransfer }                  from '../../../db/redis/roomTransfer.js';
-import { db }                                  from '../../../db/postgres/client.js';
-import { characters }                          from '../../../db/postgres/schema/index.js';
 import type { CommandHandler }                 from '../registry.js';
 
 type IO   = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
@@ -36,19 +33,8 @@ export function makeMoveHandler(io: IO, getSocket: (characterId: string) => Sock
     const destRoomId = asRoomId(toRoomId);
     const charId     = asCharacterId(characterId);
 
-    // 2. Atomic Redis transfer
+    // 2. Atomic Redis transfer — marks character dirty for write-behind flush
     await atomicRoomTransfer(charId, fromRoomId, destRoomId);
-
-    // 3. Write-behind: mark dirty for 30s flush
-    //    (already handled by Lua script via dirty:players Set)
-
-    // 4. Update Postgres immediately for location durability
-    //    Movement is write-behind per design — Postgres flush handled by background job.
-    //    For now update synchronously until flush job is built.
-    await db
-      .update(characters)
-      .set({ currentRoomId: toRoomId, updatedAt: new Date() })
-      .where(eq(characters.id, characterId));
 
     // 5. Switch Socket.io rooms
     const socket = getSocket(characterId);
