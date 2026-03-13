@@ -1,6 +1,6 @@
 import {
   pgTable, uuid, varchar, text, integer,
-  timestamp, jsonb, foreignKey, index
+  timestamp, jsonb, foreignKey, index, unique
 } from 'drizzle-orm/pg-core';
 
 // ------------------------------------------------------------------ //
@@ -59,3 +59,25 @@ export type Room      = typeof rooms.$inferSelect;
 export type Character = typeof characters.$inferSelect;
 export type NewUser   = typeof users.$inferInsert;
 export type NewRoom   = typeof rooms.$inferInsert;
+
+// ------------------------------------------------------------------ //
+// exits — adjacency list for room connections
+// ------------------------------------------------------------------ //
+export const exits = pgTable('exits', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  fromRoomId:  uuid('from_room_id').notNull(),
+  toRoomId:    uuid('to_room_id').notNull(),
+  direction:   varchar('direction', { length: 16 }).notNull(), // north, south, east, west, up, down
+  description: text('description'),                             // optional flavour on the exit itself
+  // Extensible: locked, hidden, door name, key required, etc.
+  properties:  jsonb('properties').notNull().default({}),
+}, (table) => [
+  // One exit per direction per room — can't have two norths
+  unique('exits_from_room_direction_uniq').on(table.fromRoomId, table.direction),
+  index('exits_from_room_id_idx').on(table.fromRoomId),
+  foreignKey({ columns: [table.fromRoomId], foreignColumns: [rooms.id] }),
+  foreignKey({ columns: [table.toRoomId],   foreignColumns: [rooms.id] }),
+]);
+
+export type Exit    = typeof exits.$inferSelect;
+export type NewExit = typeof exits.$inferInsert;

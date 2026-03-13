@@ -26,8 +26,7 @@ export function registerConnectionHandler(io: IO, registry: CommandRegistry): vo
 
     // Join the player's personal room + their current MUD room
     void socket.join(`player:${characterId}`);
-    // roomId is populated by a post-auth load step (stub for now)
-    // void socket.join(`room:${socket.data.roomId}`);
+    void socket.join(`room:${socket.data.roomId}`);
 
     // Send initial state feedback
     socket.emit('player:message', {
