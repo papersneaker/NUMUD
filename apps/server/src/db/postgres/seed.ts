@@ -2,19 +2,19 @@ import { db }   from './client.js';
 import { rooms, users, characters, exits } from './schema/index.js';
 import { eq }   from 'drizzle-orm';
 import bcrypt   from 'bcrypt';
+import { seedBailBonds } from './seed_bail_bonds.js';
 
 async function seed(): Promise<void> {
   console.log('[Seed] Starting...');
 
   // ── Rooms ──────────────────────────────────────────────────────
   const existingRooms = await db.select().from(rooms);
-  let emberCourtId: string;
-  let vestibuleId:  string;
 
-  if (existingRooms.length >= 2) {
+  let emberCourtId: string;
+
+  if (existingRooms.length > 0) {
     emberCourtId = existingRooms[0]!.id;
-    vestibuleId  = existingRooms[1]!.id;
-    console.log('[Seed] Rooms already exist, skipping');
+    console.log(`[Seed] ${existingRooms.length} room(s) already exist, skipping base rooms`);
   } else {
     // Clear any partial seed
     await db.delete(exits);
@@ -35,34 +35,54 @@ async function seed(): Promise<void> {
     }).returning();
 
     emberCourtId = emberCourt!.id;
-    vestibuleId  = vestibule!.id;
 
-    // Wire exits both directions
     await db.insert(exits).values([
       {
         fromRoomId:  emberCourtId,
-        toRoomId:    vestibuleId,
+        toRoomId:    vestibule!.id,
         direction:   'north',
         description: 'A crumbling archway leads north into shadow.',
       },
       {
-        fromRoomId:  vestibuleId,
+        fromRoomId:  vestibule!.id,
         toRoomId:    emberCourtId,
         direction:   'south',
         description: 'The ruined ballroom opens to the south.',
       },
     ]);
 
-    console.log(`[Seed] Created: The Ember Court (${emberCourtId})`);
-    console.log(`[Seed] Created: The Vestibule  (${vestibuleId})`);
-    console.log('[Seed] Exits wired: north/south');
+    console.log(`[Seed] Created: The Ember Court + The Vestibule`);
+  }
+
+  // ── Bail Bonds block ───────────────────────────────────────────
+  const bailBondsExists = existingRooms.some(r => r.name.startsWith('Crown Street'));
+  if (bailBondsExists) {
+    console.log('[Seed] Bail bonds rooms already exist, skipping');
+  } else {
+    await seedBailBonds();
   }
 
   // ── User + Character ───────────────────────────────────────────
+  // Starting room is Crown Street — Bail Bonds Front
+  const [crownFrontRoom] = await db
+    .select()
+    .from(rooms)
+    .where(eq(rooms.name, 'Crown Street — Bail Bonds Front'));
+
+  const startRoomId = crownFrontRoom?.id ?? emberCourtId;
+
   const [existingUser] = await db.select().from(users).limit(1);
 
   if (existingUser) {
     console.log(`[Seed] User already exists: ${existingUser.username}`);
+    // Relocate existing character to the correct starting room
+    if (crownFrontRoom) {
+      await db
+        .update(characters)
+        .set({ currentRoomId: crownFrontRoom.id, updatedAt: new Date() })
+        .where(eq(characters.userId, existingUser.id));
+      console.log(`[Seed] Character relocated to: Crown Street — Bail Bonds Front`);
+    }
   } else {
     const passwordHash = await bcrypt.hash('testpass', 10);
     const [user] = await db.insert(users).values({
@@ -74,7 +94,7 @@ async function seed(): Promise<void> {
     const [character] = await db.insert(characters).values({
       userId:        user!.id,
       name:          'Ash',
-      currentRoomId: emberCourtId,
+      currentRoomId: startRoomId,
       hp:            10,
       maxHp:         10,
       stats:         { clan: 'Toreador', generation: 12, strength: 2, dexterity: 3 },
